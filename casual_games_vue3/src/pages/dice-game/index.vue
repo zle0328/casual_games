@@ -193,19 +193,28 @@ function playShakeSound() {
     if (h5Audio) {
       h5Audio.currentTime = 0;
       const p = h5Audio.play();
-      if (p && (p as any).catch) (p as any).catch(() => {});
+      if (p && (p as any).catch) {
+        (p as any).catch((err: any) => {
+          console.error('H5音频播放失败:', err);
+        });
+      }
+    } else {
+      console.warn('h5Audio 未初始化');
     }
   } catch (e) {
-    /* 音频播放失败忽略 */
+    console.error('播放音频异常:', e);
   }
   // #endif
   // #ifndef H5
   try {
-    if (!shakeAudio) return;
+    if (!shakeAudio) {
+      console.warn('shakeAudio 未初始化');
+      return;
+    }
     shakeAudio.seek(0);
     shakeAudio.play();
   } catch (e) {
-    /* 音频播放失败忽略 */
+    console.error('播放音频异常:', e);
   }
   // #endif
 }
@@ -221,6 +230,8 @@ function touchY(e: any): number {
 }
 
 function onDomeTouchStart(e: any) {
+  // 摇骰过程中禁止打开盖子
+  if (isShaking.value) return;
   isDragging.value = true;
   dragStartY = touchY(e);
   dragStartLift = domeLift.value;
@@ -270,7 +281,7 @@ function goBack() {
 }
 
 // 摇一摇手势触发（阈值越大越不灵敏；需连续多次强晃动才触发，避免轻晃误触）
-const SHAKE_THRESHOLD = 3.0; // 单次采样的加速度变化阈值
+const SHAKE_THRESHOLD = 1.2; // 单次采样的加速度变化阈值（降低阈值提高灵敏度）
 const SHAKE_COOLDOWN = 1500; // 两次触发的最小间隔 ms
 const SHAKE_CONFIRM = 2; // 需要连续达到阈值的采样次数
 let lastAccel = { x: 0, y: 0, z: 0 };
@@ -314,8 +325,19 @@ onMounted(() => {
   try {
     h5Audio = new Audio('/static/video/touzhi.mp3');
     h5Audio.preload = 'auto';
+    h5Audio.load(); // 强制加载音频
+    // iOS Safari 需要用户交互后才能播放，尝试预热
+    document.addEventListener('touchstart', function initAudio() {
+      if (h5Audio) {
+        h5Audio.play().then(() => {
+          h5Audio!.pause();
+          h5Audio!.currentTime = 0;
+        }).catch(() => {});
+      }
+      document.removeEventListener('touchstart', initAudio);
+    }, { once: true });
   } catch (e) {
-    /* 音频不可用时忽略 */
+    console.error('音频初始化失败:', e);
   }
   try {
     document.addEventListener('touchmove', preventScroll, { passive: false });
