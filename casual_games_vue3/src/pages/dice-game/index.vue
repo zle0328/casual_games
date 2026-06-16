@@ -49,12 +49,6 @@
           ></image>
         </view>
       </view>
-
-      <!-- 拖拽提示 / 点数 -->
-      <view class="result-tip">
-        <text class="drag-hint" v-if="showHint">👆 上拉揭盅 · 下拉盖回</text>
-        <text class="result-points" v-if="showPoints">{{ diceValues.join(' · ') }} ＝ {{ totalPoints }} 点</text>
-      </view>
     </view>
 
     <!-- 摇骰子按钮 -->
@@ -105,7 +99,6 @@ const isShaking = ref(false);
 const shakeDisabled = ref(false);
 const diceCount = ref(5);
 const dice = ref<Die[]>([]);
-
 // 盖子抬升状态
 const domeLift = ref(0); // 0=盖合，MAX_LIFT=完全揭开
 const isDragging = ref(false);
@@ -120,9 +113,6 @@ const DICE_LAYOUTS: Record<number, [number, number][]> = {
   6: [[30, 55], [160, 38], [290, 58], [70, 160], [180, 165], [300, 150]],
 };
 
-const diceValues = computed(() => dice.value.map((d) => d.value));
-const totalPoints = computed(() => diceValues.value.reduce((s, v) => s + v, 0));
-
 // 盖子样式：抬升越高，越向上 + 倾斜 + 略缩小淡出
 const domeStyle = computed(() => {
   const p = domeLift.value / MAX_LIFT;
@@ -136,9 +126,6 @@ const domeStyle = computed(() => {
 const diceLayerStyle = computed(() => ({
   opacity: String(domeLift.value <= 0 ? 0 : Math.min(1, domeLift.value / (MAX_LIFT * 0.5))),
 }));
-
-const showPoints = computed(() => dice.value.length > 0 && domeLift.value > MAX_LIFT * 0.55);
-const showHint = computed(() => dice.value.length > 0 && domeLift.value < 30 && !isShaking.value);
 
 function randInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -333,7 +320,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 40rpx;
+  padding-top: 150rpx;
   min-height: 900rpx;
 }
 
@@ -442,41 +429,6 @@ onUnmounted(() => {
 @keyframes shadowPulse {
   0%, 100% { transform: scaleX(1); opacity: 0.9; }
   50% { transform: scaleX(0.82); opacity: 0.6; }
-}
-
-/* 结果提示 */
-.result-tip {
-  margin-top: 24rpx;
-  min-height: 70rpx;
-  text-align: center;
-}
-
-.drag-hint {
-  display: block;
-  font-size: 30rpx;
-  color: rgba(255, 255, 255, 0.55);
-  letter-spacing: 2rpx;
-  animation: hintBlink 1.6s ease-in-out infinite;
-}
-
-@keyframes hintBlink {
-  0%, 100% { opacity: 0.45; }
-  50% { opacity: 0.9; }
-}
-
-.result-points {
-  display: block;
-  font-size: 38rpx;
-  font-weight: bold;
-  color: #ffd700;
-  letter-spacing: 2rpx;
-  text-shadow: 0 4rpx 10rpx rgba(0, 0, 0, 0.5);
-  animation: fadeUp 0.3s ease-out;
-}
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12rpx); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 /* 摇骰子按钮 */
