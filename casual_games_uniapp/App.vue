@@ -8,6 +8,14 @@ onLaunch(() => {
   console.log('App Launch');
   // 从本地存储加载用户信息
   userStore.loadUserFromStorage();
+
+  // 检查是否首次启动
+  if (!userStore.isLoggedIn) {
+    // 跳转到登录页
+    setTimeout(() => {
+      uni.reLaunch({ url: '/pages/login/index' });
+    }, 100);
+  }
 });
 
 onShow(() => {
