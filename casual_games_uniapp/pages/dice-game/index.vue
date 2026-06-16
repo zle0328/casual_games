@@ -88,10 +88,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useUserStore } from '../../stores/user';
 import { randomInt, vibrateShort, vibrateLong } from '../../utils/helpers';
+import { getRoom } from '../../api/room';
+import { saveGameResult } from '../../api/game';
+
+const userStore = useUserStore();
 
 const isOnlineMode = ref(false);
+const roomCode = ref('');
 const isShaking = ref(false);
 const showResult = ref(false);
 const showRules = ref(false);
@@ -100,17 +106,62 @@ const totalPoints = ref(3);
 const resultDesc = ref('');
 const history = ref<Array<{ values: number[]; total: number; type: string }>>([]);
 
+// 联机模式相关
+const roomPlayers = ref<Array<{ user_id: string; nickname: string; diceResult?: number[] }>>([]);
+const myRank = ref(0);
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
 let accelerometerListener: any = null;
 let lastShakeTime = 0;
 
 onMounted(() => {
+  // 从路由参数判断是否联机模式
+  const pages = getCurrentPages();
+  const currentPage = pages[pages.length - 1];
+  const options = (currentPage as any).options || {};
+
+  if (options.room) {
+    isOnlineMode.value = true;
+    roomCode.value = options.room;
+    loadRoomData();
+    startPolling();
+  }
+
   // 监听加速度计（摇一摇）
   startAccelerometer();
 });
 
 onUnmounted(() => {
   stopAccelerometer();
+  stopPolling();
 });
+
+// 加载房间数据
+async function loadRoomData() {
+  try {
+    const res = await getRoom(roomCode.value);
+    if (res.success && res.data) {
+      roomPlayers.value = res.data.players || [];
+    }
+  } catch (error) {
+    console.error('Load room error:', error);
+  }
+}
+
+// 开始轮询
+function startPolling() {
+  pollTimer = setInterval(() => {
+    loadRoomData();
+  }, 3000);
+}
+
+// 停止轮询
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
 
 // 启动加速度计监听
 function startAccelerometer() {
@@ -161,7 +212,7 @@ function shakeDice() {
 }
 
 // 摇骰子完成
-function finishShake() {
+async function finishShake() {
   isShaking.value = false;
   showResult.value = true;
 
@@ -197,6 +248,25 @@ function finishShake() {
   if (history.value.length > 10) {
     history.value.pop();
   }
+
+  // 联机模式：保存结果到后端
+  if (isOnlineMode.value && roomCode.value) {
+    try {
+      await saveGameResult({
+        room_code: roomCode.value,
+        user_id: userStore.userId,
+        game_type: 'dice',
+        result: 'draw', // 骰子游戏没有明确胜负
+        details: {
+          values: diceValues.value,
+          total: totalPoints.value,
+          type,
+        },
+      });
+    } catch (error) {
+      console.error('Save result error:', error);
+    }
+  }
 }
 
 // 切换模式
@@ -204,16 +274,25 @@ function switchMode() {
   if (!isOnlineMode.value) {
     uni.showModal({
       title: '提示',
-      content: '联机模式需要创建或加入房间，是否前往？',
+      content: '联机模式需要创建或加入房间，是否前往首页？',
       success: (res) => {
         if (res.confirm) {
-          // TODO: 跳转到房间页面
-          uni.showToast({ title: '功能开发中', icon: 'none' });
+          uni.navigateBack();
         }
       },
     });
   } else {
-    isOnlineMode.value = false;
+    // 退出联机模式
+    uni.showModal({
+      title: '确认退出',
+      content: '确定要退出联机模式吗？',
+      success: (res) => {
+        if (res.confirm) {
+          stopPolling();
+          uni.navigateBack();
+        }
+      },
+    });
   }
 }
 
@@ -224,7 +303,20 @@ function toggleRules() {
 
 // 返回
 function goBack() {
-  uni.navigateBack();
+  if (isOnlineMode.value) {
+    uni.showModal({
+      title: '确认退出',
+      content: '确定要退出房间吗？',
+      success: (res) => {
+        if (res.confirm) {
+          stopPolling();
+          uni.navigateBack();
+        }
+      },
+    });
+  } else {
+    uni.navigateBack();
+  }
 }
 </script>
 

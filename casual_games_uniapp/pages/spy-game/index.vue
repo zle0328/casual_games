@@ -144,17 +144,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
+import { useUserStore } from '../../stores/user';
 import { shuffle } from '../../utils/helpers';
+import { getRoom } from '../../api/room';
+import { assignSpyRoles, saveGameResult } from '../../api/game';
 
 type GameState = 'setup' | 'playing' | 'voting' | 'ended';
 type Role = 'civilian' | 'spy' | 'blank';
+
+const userStore = useUserStore();
 
 const gameState = ref<GameState>('setup');
 const playerCount = ref(5);
 const spyCount = ref(1);
 const blankCount = ref(0);
 const roomCode = ref('');
+const isOnlineMode = ref(false);
 
 const identityRevealed = ref(false);
 const myRole = ref<Role>('civilian');
@@ -167,6 +173,8 @@ const assignedRoles = ref<Role[]>([]);
 
 const gameResult = ref<'spy_win' | 'civilian_win'>('civilian_win');
 const resultMessage = ref('');
+
+let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 // 词条库
 const wordPairs = [
@@ -181,6 +189,58 @@ const wordPairs = [
   { civilian: '状元', spy: '冠军' },
   { civilian: '饼干', spy: '薯片' },
 ];
+
+onMounted(() => {
+  // 从路由参数判断是否联机模式
+  const pages = getCurrentPages();
+  const currentPage = pages[pages.length - 1];
+  const options = (currentPage as any).options || {};
+
+  if (options.room) {
+    isOnlineMode.value = true;
+    roomCode.value = options.room;
+    loadRoomData();
+  }
+});
+
+onUnmounted(() => {
+  stopPolling();
+});
+
+// 加载房间数据
+async function loadRoomData() {
+  try {
+    const res = await getRoom(roomCode.value);
+    if (res.success && res.data) {
+      playerCount.value = res.data.players?.length || 5;
+      // 从房间设置加载配置
+      const settings = typeof res.data.settings === 'string'
+        ? JSON.parse(res.data.settings)
+        : res.data.settings;
+      if (settings) {
+        spyCount.value = settings.spy_count || 1;
+        blankCount.value = settings.blank_count || 0;
+      }
+    }
+  } catch (error) {
+    console.error('Load room error:', error);
+  }
+}
+
+// 开始轮询
+function startPolling() {
+  pollTimer = setInterval(() => {
+    loadRoomData();
+  }, 3000);
+}
+
+// 停止轮询
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
 
 // 改变玩家人数
 function changePlayerCount(delta: number) {
@@ -212,7 +272,40 @@ function changeBlankCount(delta: number) {
 }
 
 // 开始游戏
-function startGame() {
+async function startGame() {
+  // 联机模式：从后端获取角色分配
+  if (isOnlineMode.value && roomCode.value) {
+    try {
+      uni.showLoading({ title: '分配角色中...' });
+
+      const res = await assignSpyRoles({
+        room_code: roomCode.value,
+        spy_count: spyCount.value,
+        blank_count: blankCount.value,
+      });
+
+      uni.hideLoading();
+
+      if (res.success && res.data) {
+        // TODO: 从后端获取我的角色和词条
+        // 这里暂时使用单机模式的逻辑
+        startLocalGame();
+      }
+    } catch (error: any) {
+      uni.hideLoading();
+      uni.showToast({
+        title: error.message || '开始游戏失败',
+        icon: 'none',
+      });
+      return;
+    }
+  } else {
+    startLocalGame();
+  }
+}
+
+// 单机模式开始游戏
+function startLocalGame() {
   // 随机选择词条
   const wordPair = wordPairs[Math.floor(Math.random() * wordPairs.length)];
 
@@ -306,10 +399,31 @@ function endGame() {
 }
 
 // 以指定结果结束游戏
-function endGameWithResult(result: 'spy_win' | 'civilian_win', message: string) {
+async function endGameWithResult(result: 'spy_win' | 'civilian_win', message: string) {
   gameResult.value = result;
   resultMessage.value = message;
   gameState.value = 'ended';
+
+  // 联机模式：保存结果
+  if (isOnlineMode.value && roomCode.value) {
+    try {
+      await saveGameResult({
+        room_code: roomCode.value,
+        user_id: userStore.userId,
+        game_type: 'spy',
+        result: myRole.value === 'spy'
+          ? (result === 'spy_win' ? 'win' : 'lose')
+          : (result === 'civilian_win' ? 'win' : 'lose'),
+        details: {
+          role: myRole.value,
+          word: myWord.value,
+          eliminated: eliminatedPlayers.value.includes(myPlayerNumber.value),
+        },
+      });
+    } catch (error) {
+      console.error('Save result error:', error);
+    }
+  }
 }
 
 // 重新开始
