@@ -5,7 +5,10 @@
       "Bash(git remote *)",
       "Bash(npm --version)",
       "Bash(mkdir -p casual_games_backend)",
-      "Bash(npm init *)"
+      "Bash(npm init *)",
+      "Bash(git commit *)",
+      "Bash(git config *)",
+      "Bash(git add *)"
     ]
   }
 }
