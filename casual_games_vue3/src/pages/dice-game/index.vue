@@ -183,15 +183,31 @@ function safeVibrate(type: 'short' | 'long') {
 }
 
 // 摇骰音效
-let shakeAudio: any = null;
+let shakeAudio: any = null; // InnerAudioContext（小程序 / App）
+// #ifdef H5
+let h5Audio: HTMLAudioElement | null = null; // H5 原生音频，iOS 兼容更好
+// #endif
 function playShakeSound() {
+  // #ifdef H5
+  try {
+    if (h5Audio) {
+      h5Audio.currentTime = 0;
+      const p = h5Audio.play();
+      if (p && (p as any).catch) (p as any).catch(() => {});
+    }
+  } catch (e) {
+    /* 音频播放失败忽略 */
+  }
+  // #endif
+  // #ifndef H5
   try {
     if (!shakeAudio) return;
-    shakeAudio.stop();
+    shakeAudio.seek(0);
     shakeAudio.play();
   } catch (e) {
     /* 音频播放失败忽略 */
   }
+  // #endif
 }
 
 // ===== 盖子手动拖动 =====
@@ -280,6 +296,13 @@ function onAccel(res: { x: number; y: number; z: number }) {
   }
 }
 
+// #ifdef H5
+// 阻止 iOS Safari 页面橡皮筋滚动（盖子拖拽用 .stop 已截断冒泡，不受影响）
+function preventScroll(e: TouchEvent) {
+  e.preventDefault();
+}
+// #endif
+
 onMounted(() => {
   try {
     const info = uni.getSystemInfoSync();
@@ -287,12 +310,27 @@ onMounted(() => {
   } catch (e) {
     /* 取不到屏宽时用默认系数 */
   }
+  // #ifdef H5
+  try {
+    h5Audio = new Audio('/static/video/touzhi.mp3');
+    h5Audio.preload = 'auto';
+  } catch (e) {
+    /* 音频不可用时忽略 */
+  }
+  try {
+    document.addEventListener('touchmove', preventScroll, { passive: false });
+  } catch (e) {
+    /* ignore */
+  }
+  // #endif
+  // #ifndef H5
   try {
     shakeAudio = uni.createInnerAudioContext();
     shakeAudio.src = '/static/video/touzhi.mp3';
   } catch (e) {
     /* 音频不可用时忽略 */
   }
+  // #endif
   try {
     uni.startAccelerometer({ interval: 'normal' });
     uni.onAccelerometerChange(onAccel);
@@ -317,6 +355,17 @@ onUnmounted(() => {
   } catch (e) {
     /* ignore */
   }
+  // #ifdef H5
+  try {
+    document.removeEventListener('touchmove', preventScroll);
+    if (h5Audio) {
+      h5Audio.pause();
+      h5Audio = null;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  // #endif
 });
 </script>
 
