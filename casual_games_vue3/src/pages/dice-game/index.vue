@@ -9,7 +9,7 @@
 
     <!-- 3D骰盅区域 -->
     <view class="dice-cup-area">
-      <view class="cup-wrap" :class="{ shaking: isShaking, opened: isOpened }">
+      <view class="cup-wrap" :class="{ shaking: isShaking }">
         <!-- 地面投影 -->
         <view class="cup-shadow" :class="{ shaking: isShaking }"></view>
 
@@ -20,25 +20,28 @@
           mode="widthFix"
         ></image>
 
-        <!-- 骰子结果（落在盘面上） -->
-        <view class="dice-layer" v-if="isOpened">
+        <!-- 骰子结果（落在盘面上，随盖子抬升显现） -->
+        <view class="dice-layer" v-if="dice.length > 0" :style="diceLayerStyle">
           <view
             v-for="(d, index) in dice"
             :key="index"
             class="dice-slot"
             :style="{ left: d.x + 'rpx', top: d.y + 'rpx', transform: 'rotate(' + d.rot + 'deg)' }"
           >
-            <image
-              class="dice-image"
-              :style="{ animationDelay: index * 0.07 + 's' }"
-              :src="getDiceImage(d)"
-              mode="widthFix"
-            ></image>
+            <image class="dice-image" :src="getDiceImage(d)" mode="widthFix"></image>
           </view>
         </view>
 
-        <!-- 盖子（骰盅，揭开时抬起） -->
-        <view class="cup-dome-pos">
+        <!-- 盖子（骰盅，可手动拖动开合） -->
+        <view
+          class="cup-dome-pos"
+          :class="{ dragging: isDragging }"
+          :style="domeStyle"
+          @touchstart="onDomeTouchStart"
+          @touchmove.stop.prevent="onDomeTouchMove"
+          @touchend="onDomeTouchEnd"
+          @touchcancel="onDomeTouchEnd"
+        >
           <image
             class="cup-dome"
             src="/static/images/gaizi.png"
@@ -47,10 +50,10 @@
         </view>
       </view>
 
-      <!-- 结果提示 -->
-      <view class="result-tip" v-if="showResult">
-        <text class="result-text" :class="'tier-' + result.tier">{{ result.emoji }} {{ result.name }}</text>
-        <text class="result-points">{{ diceValues.join(' · ') }} ＝ {{ totalPoints }} 点</text>
+      <!-- 拖拽提示 / 点数 -->
+      <view class="result-tip">
+        <text class="drag-hint" v-if="showHint">👆 上拉揭盅 · 下拉盖回</text>
+        <text class="result-points" v-if="showPoints">{{ diceValues.join(' · ') }} ＝ {{ totalPoints }} 点</text>
       </view>
     </view>
 
@@ -58,11 +61,11 @@
     <view class="action-section">
       <button
         class="shake-btn"
-        :class="{ active: isShaking }"
+        :class="{ active: isShaking, locked: shakeDisabled }"
         @tap="handleShake"
         :disabled="isShaking"
       >
-        <text class="shake-text">{{ isShaking ? '⋯' : '摇' }}</text>
+        <text class="shake-text">{{ isShaking ? '⋯' : (shakeDisabled ? '🔒' : '摇') }}</text>
       </button>
     </view>
 
@@ -72,29 +75,13 @@
         <text class="btn-icon">🎲</text>
         <text class="btn-label">骰子数 {{ diceCount }}</text>
       </view>
-      <view class="btn-item" @tap="showGameRules">
-        <text class="btn-icon">📖</text>
-        <text class="btn-label">规则</text>
+      <view class="btn-item" @tap="toggleShakeLock">
+        <text class="btn-icon">{{ shakeDisabled ? '🔓' : '🔒' }}</text>
+        <text class="btn-label">{{ shakeDisabled ? '允许摇骰' : '禁止摇骰' }}</text>
       </view>
       <view class="btn-item" @tap="showPlayGuide">
         <text class="btn-icon">❓</text>
         <text class="btn-label">玩法</text>
-      </view>
-    </view>
-
-    <!-- 规则弹窗 -->
-    <view class="modal" v-if="showRules" @tap="showRules = false">
-      <view class="modal-content rules-modal" @tap.stop>
-        <view class="modal-header">
-          <text class="modal-title">玩法规则（{{ diceCount }} 颗骰子）</text>
-          <text class="modal-close" @tap="showRules = false">×</text>
-        </view>
-        <view class="rules-list">
-          <view class="rule-item" v-for="(r, i) in ruleList" :key="i">
-            <text class="rule-label">{{ r.label }}</text>
-            <text class="rule-desc">{{ r.desc }}</text>
-          </view>
-        </view>
       </view>
     </view>
   </view>
@@ -111,12 +98,17 @@ interface Die {
   rot: number;   // 摆放旋转角度
 }
 
+// 盖子最大抬升高度（rpx）
+const MAX_LIFT = 440;
+
 const isShaking = ref(false);
-const isOpened = ref(false);
-const showResult = ref(false);
-const showRules = ref(false);
+const shakeDisabled = ref(false);
 const diceCount = ref(5);
 const dice = ref<Die[]>([]);
+
+// 盖子抬升状态
+const domeLift = ref(0); // 0=盖合，MAX_LIFT=完全揭开
+const isDragging = ref(false);
 
 // 各骰子数对应的自然散落锚点（基于 dice-layer 内坐标，单位 rpx）
 const DICE_LAYOUTS: Record<number, [number, number][]> = {
@@ -131,44 +123,22 @@ const DICE_LAYOUTS: Record<number, [number, number][]> = {
 const diceValues = computed(() => dice.value.map((d) => d.value));
 const totalPoints = computed(() => diceValues.value.reduce((s, v) => s + v, 0));
 
-// 通用牌型判定，适配 3~6 颗骰子
-const result = computed(() => {
-  const vals = diceValues.value;
-  const n = vals.length;
-  if (n === 0) return { name: '', emoji: '', tier: 'low' };
-
-  const counts: Record<number, number> = {};
-  vals.forEach((v) => (counts[v] = (counts[v] || 0) + 1));
-  const pattern = Object.values(counts).sort((a, b) => b - a); // 降序，如 [3,2]
-  const max = pattern[0];
-  const uniq = Object.keys(counts).map(Number).sort((a, b) => a - b);
-  const isStraight = uniq.length === n && uniq[n - 1] - uniq[0] === n - 1;
-
-  if (max === n) return { name: n >= 4 ? `全色·${n}条` : '豹子', emoji: '🎉', tier: 'max' };
-  if (isStraight) return { name: '顺子', emoji: '✨', tier: 'high' };
-  if (max === 4) return { name: '四条', emoji: '🔥', tier: 'high' };
-  if (max === 3 && pattern[1] === 2) return { name: '葫芦', emoji: '💎', tier: 'high' };
-  if (max === 3) return { name: '三条', emoji: '💫', tier: 'mid' };
-  if (max === 2 && pattern[1] === 2) return { name: '两对', emoji: '👍', tier: 'mid' };
-  if (max === 2) return { name: '对子', emoji: '🙂', tier: 'low' };
-  return { name: '散点', emoji: '🎯', tier: 'low' };
+// 盖子样式：抬升越高，越向上 + 倾斜 + 略缩小淡出
+const domeStyle = computed(() => {
+  const p = domeLift.value / MAX_LIFT;
+  return {
+    transform: `translateY(${-domeLift.value}rpx) rotate(${-11 * p}deg) scale(${1 - 0.06 * p})`,
+    opacity: String(1 - 0.08 * p),
+  };
 });
 
-const ruleList = computed(() => {
-  const base = [
-    { label: '豹子 / 全色', desc: '所有骰子点数相同，最大' },
-    { label: '顺子', desc: '点数全部连续' },
-    { label: '四条', desc: '四颗相同点数' },
-    { label: '葫芦', desc: '三条 + 一对' },
-    { label: '三条', desc: '三颗相同点数' },
-    { label: '两对', desc: '两组对子' },
-    { label: '对子', desc: '一组相同点数' },
-    { label: '散点', desc: '比较总点数大小' },
-  ];
-  // 骰子较少时隐藏不可能出现的牌型
-  if (diceCount.value < 5) return base.filter((r) => !['四条', '葫芦', '两对'].includes(r.label));
-  return base;
-});
+// 骰子层透明度跟随盖子抬升（盖合时隐藏，半开即完全显现）
+const diceLayerStyle = computed(() => ({
+  opacity: String(domeLift.value <= 0 ? 0 : Math.min(1, domeLift.value / (MAX_LIFT * 0.5))),
+}));
+
+const showPoints = computed(() => dice.value.length > 0 && domeLift.value > MAX_LIFT * 0.55);
+const showHint = computed(() => dice.value.length > 0 && domeLift.value < 30 && !isShaking.value);
 
 function randInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -193,15 +163,17 @@ function rollDice() {
   }));
 }
 
-// 摇骰子主流程
+// 摇骰子：摇动后骰子落定（盖子保持闭合，由玩家手动揭开）
 function handleShake() {
   if (isShaking.value) return;
+  if (shakeDisabled.value) {
+    uni.showToast({ title: '摇骰已被禁止', icon: 'none' });
+    return;
+  }
 
-  isOpened.value = false;
-  showResult.value = false;
+  domeLift.value = 0; // 先盖回
   isShaking.value = true;
 
-  // 摇动过程中的连续震动反馈
   safeVibrate('short');
   const buzz = setInterval(() => safeVibrate('short'), 260);
 
@@ -209,15 +181,7 @@ function handleShake() {
     clearInterval(buzz);
     isShaking.value = false;
     rollDice();
-
-    // 揭盅 → 显示结果
-    setTimeout(() => {
-      isOpened.value = true;
-      safeVibrate('long');
-      setTimeout(() => {
-        showResult.value = true;
-      }, 420);
-    }, 220);
+    safeVibrate('long');
   }, 1600);
 }
 
@@ -230,27 +194,59 @@ function safeVibrate(type: 'short' | 'long') {
   }
 }
 
+// ===== 盖子手动拖动 =====
+let dragStartY = 0;
+let dragStartLift = 0;
+let rpxFactor = 2; // px → rpx 换算系数（750 / 屏宽px）
+
+function touchY(e: any): number {
+  const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+  return t ? (t.clientY ?? t.pageY ?? 0) : 0;
+}
+
+function onDomeTouchStart(e: any) {
+  isDragging.value = true;
+  dragStartY = touchY(e);
+  dragStartLift = domeLift.value;
+}
+
+function onDomeTouchMove(e: any) {
+  if (!isDragging.value) return;
+  const dy = dragStartY - touchY(e); // 向上拖为正
+  let lift = dragStartLift + dy * rpxFactor;
+  lift = Math.max(0, Math.min(MAX_LIFT, lift));
+  domeLift.value = lift;
+}
+
+function onDomeTouchEnd() {
+  if (!isDragging.value) return;
+  isDragging.value = false;
+  // 松手吸附：超过 40% 行程则完全揭开，否则盖回
+  domeLift.value = domeLift.value > MAX_LIFT * 0.4 ? MAX_LIFT : 0;
+}
+
 // 选择骰子数量
 function chooseDiceCount() {
   if (isShaking.value) return;
-  const options = ['3 颗', '4 颗', '5 颗', '6 颗'];
+  const counts = [3, 4, 5, 6];
   uni.showActionSheet({
-    itemList: options,
+    itemList: counts.map((c) => `${c} 颗`),
     success: (res) => {
-      diceCount.value = [3, 4, 5, 6][res.tapIndex];
-      isOpened.value = false;
-      showResult.value = false;
+      diceCount.value = counts[res.tapIndex];
+      domeLift.value = 0;
       dice.value = [];
     },
   });
 }
 
-function showGameRules() {
-  showRules.value = true;
+// 禁止 / 允许摇骰
+function toggleShakeLock() {
+  shakeDisabled.value = !shakeDisabled.value;
+  uni.showToast({ title: shakeDisabled.value ? '已禁止摇骰' : '已允许摇骰', icon: 'none' });
 }
 
 function showPlayGuide() {
-  uni.showToast({ title: '摇动手机或点「摇」即可开局', icon: 'none' });
+  uni.showToast({ title: '点「摇」掷骰，再上拉盖子揭盅', icon: 'none' });
 }
 
 function goBack() {
@@ -267,13 +263,19 @@ function onAccel(res: { x: number; y: number; z: number }) {
     Math.abs(res.z - lastAccel.z);
   lastAccel = { x: res.x, y: res.y, z: res.z };
   const now = Date.now();
-  if (delta > 1.8 && !isShaking.value && now - shakeCooldown > 1200) {
+  if (delta > 1.8 && !isShaking.value && !shakeDisabled.value && now - shakeCooldown > 1200) {
     shakeCooldown = now;
     handleShake();
   }
 }
 
 onMounted(() => {
+  try {
+    const info = uni.getSystemInfoSync();
+    if (info && info.windowWidth) rpxFactor = 750 / info.windowWidth;
+  } catch (e) {
+    /* 取不到屏宽时用默认系数 */
+  }
   try {
     uni.startAccelerometer({ interval: 'normal' });
     uni.onAccelerometerChange(onAccel);
@@ -392,10 +394,9 @@ onUnmounted(() => {
 .dice-image {
   width: 96rpx;
   filter: drop-shadow(0 8rpx 10rpx rgba(0, 0, 0, 0.5));
-  animation: diceDrop 0.5s cubic-bezier(0.2, 0.85, 0.3, 1.25) both;
 }
 
-/* 盖子定位与抬升 */
+/* 盖子定位与抬升（可拖动） */
 .cup-dome-pos {
   position: absolute;
   left: 50%;
@@ -403,17 +404,16 @@ onUnmounted(() => {
   bottom: 120rpx;
   width: 490rpx;
   z-index: 3;
+  transform-origin: center bottom;
+  transition: transform 0.45s cubic-bezier(0.34, 1.4, 0.5, 1), opacity 0.45s ease;
+}
+.cup-dome-pos.dragging {
+  transition: none; /* 拖动时实时跟手 */
 }
 
 .cup-dome {
   width: 490rpx;
   filter: drop-shadow(0 20rpx 30rpx rgba(0, 0, 0, 0.5));
-  transform-origin: center bottom;
-  transition: transform 0.75s cubic-bezier(0.34, 1.45, 0.5, 1), opacity 0.75s ease;
-}
-.cup-wrap.opened .cup-dome {
-  transform: translateY(-420rpx) rotate(-11deg) scale(0.94);
-  opacity: 0.92;
 }
 .cup-wrap.shaking .cup-dome {
   animation: cupShake 0.42s infinite;
@@ -444,41 +444,39 @@ onUnmounted(() => {
   50% { transform: scaleX(0.82); opacity: 0.6; }
 }
 
-@keyframes diceDrop {
-  0%   { opacity: 0; transform: translateY(-60rpx) scale(0.5); }
-  70%  { opacity: 1; transform: translateY(8rpx) scale(1.08); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
 /* 结果提示 */
 .result-tip {
   margin-top: 24rpx;
+  min-height: 70rpx;
   text-align: center;
-  animation: fadeUp 0.4s ease-out;
 }
 
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(16rpx); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.result-text {
+.drag-hint {
   display: block;
-  font-size: 52rpx;
-  font-weight: bold;
-  margin-bottom: 12rpx;
-  text-shadow: 0 4rpx 10rpx rgba(0, 0, 0, 0.6);
+  font-size: 30rpx;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 2rpx;
+  animation: hintBlink 1.6s ease-in-out infinite;
 }
-.tier-max { color: #ff5e57; }
-.tier-high { color: #ffd700; }
-.tier-mid { color: #4ecdc4; }
-.tier-low { color: rgba(255, 255, 255, 0.92); }
+
+@keyframes hintBlink {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.9; }
+}
 
 .result-points {
   display: block;
-  font-size: 32rpx;
-  color: rgba(255, 255, 255, 0.8);
+  font-size: 38rpx;
+  font-weight: bold;
+  color: #ffd700;
   letter-spacing: 2rpx;
+  text-shadow: 0 4rpx 10rpx rgba(0, 0, 0, 0.5);
+  animation: fadeUp 0.3s ease-out;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12rpx); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* 摇骰子按钮 */
@@ -505,6 +503,10 @@ onUnmounted(() => {
 .shake-btn::after { border: none; }
 .shake-btn.active {
   animation: btnPulse 0.5s infinite;
+}
+.shake-btn.locked {
+  background: linear-gradient(135deg, #8a939c 0%, #6b747d 100%);
+  box-shadow: 0 16rpx 36rpx rgba(0, 0, 0, 0.3);
 }
 .shake-btn:disabled { opacity: 0.85; }
 
@@ -546,77 +548,5 @@ onUnmounted(() => {
 .btn-label {
   font-size: 24rpx;
   color: rgba(255, 255, 255, 0.85);
-}
-
-/* 弹窗 */
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: #fff;
-  border-radius: 32rpx;
-  width: 620rpx;
-  max-height: 80vh;
-  overflow: hidden;
-}
-
-.modal-header {
-  padding: 40rpx 32rpx;
-  border-bottom: 1rpx solid #eee;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-title {
-  font-size: 34rpx;
-  font-weight: bold;
-  color: #333;
-}
-
-.modal-close {
-  font-size: 48rpx;
-  color: #999;
-  width: 60rpx;
-  height: 60rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.rules-list { padding: 24rpx 32rpx 32rpx; }
-
-.rule-item {
-  padding: 24rpx;
-  margin-bottom: 16rpx;
-  background: #f8f9fa;
-  border-radius: 16rpx;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.rule-label {
-  font-size: 30rpx;
-  font-weight: bold;
-  color: #667eea;
-  flex-shrink: 0;
-  margin-right: 24rpx;
-}
-
-.rule-desc {
-  font-size: 27rpx;
-  color: #666;
-  text-align: right;
 }
 </style>
