@@ -1,0 +1,69 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "派对游戏",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/login/index",
+			"style": {
+				"navigationBarTitleText": "登录",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/profile/index",
+			"style": {
+				"navigationBarTitleText": "我的",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/dice-game/index",
+			"style": {
+				"navigationBarTitleText": "摇骰子",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/spy-game/index",
+			"style": {
+				"navigationBarTitleText": "谁是卧底",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/room/index",
+			"style": {
+				"navigationBarTitleText": "游戏房间",
+				"navigationStyle": "custom"
+			}
+		}
+	],
+	"tabBar": {
+		"color": "#999999",
+		"selectedColor": "#667eea",
+		"backgroundColor": "#ffffff",
+		"borderStyle": "black",
+		"list": [
+			{
+				"pagePath": "pages/index/index",
+				"text": "首页"
+			},
+			{
+				"pagePath": "pages/profile/index",
+				"text": "我的"
+			}
+		]
+	},
+	"globalStyle": {
+		"navigationBarTextStyle": "white",
+		"navigationBarTitleText": "派对游戏",
+		"navigationBarBackgroundColor": "#667eea",
+		"backgroundColor": "#F8F8F8"
+	},
+	"uniIdRouter": {}
+}

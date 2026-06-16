@@ -9,24 +9,12 @@ onLaunch(() => {
   // 从本地存储加载用户信息
   userStore.loadUserFromStorage();
 
-  // [临时禁用] 检查是否首次启动 - 用于本地开发测试
-  // if (!userStore.isLoggedIn) {
-  //   // 跳转到登录页
-  //   setTimeout(() => {
-  //     uni.reLaunch({ url: '/pages/login/index' });
-  //   }, 100);
-  // }
-
-  // 临时创建一个测试用户
+  // 检查是否首次启动
   if (!userStore.isLoggedIn) {
-    userStore.setUser({
-      id: 'test-user-001',
-      nickname: '测试玩家',
-      avatar: '😎',
-      total_games: 0,
-      win_rate: 0,
-      created_at: new Date().toISOString(),
-    });
+    // 跳转到登录页
+    setTimeout(() => {
+      uni.reLaunch({ url: '/pages/login/index' });
+    }, 100);
   }
 });
 

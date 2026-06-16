@@ -118,17 +118,15 @@ onMounted(async () => {
     return;
   }
 
-  // [临时禁用] 加载最近游戏记录 - 用于本地开发测试
-  // try {
-  //   const res = await getUserRecords(userStore.userId, 5);
-  //   if (res.success && res.data) {
-  //     recentGames.value = res.data.records;
-  //   }
-  // } catch (error) {
-  //   console.error('Load recent games error:', error);
-  // }
-
-  console.log('首页加载完成，用户:', userStore.nickname);
+  // 加载最近游戏记录
+  try {
+    const res = await getUserRecords(userStore.userId, 5);
+    if (res.success && res.data) {
+      recentGames.value = res.data.records;
+    }
+  } catch (error) {
+    console.error('Load recent games error:', error);
+  }
 });
 
 // 跳转摇骰子游戏

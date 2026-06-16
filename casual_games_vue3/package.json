@@ -1,0 +1,25 @@
+{
+  "name": "casual-games-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "uni -p h5",
+    "dev:h5": "uni -p h5",
+    "build:h5": "uni build -p h5",
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:mp-weixin": "uni build -p mp-weixin"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-alpha-1000920260525813",
+    "@dcloudio/uni-h5": "3.0.0-alpha-1000920260525813",
+    "@dcloudio/uni-mp-weixin": "3.0.0-alpha-1000920260525813",
+    "pinia": "^2.2.6",
+    "vue": "^3.5.12"
+  },
+  "devDependencies": {
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-1000920260525813",
+    "sass": "^1.77.0",
+    "typescript": "^5.4.5",
+    "vite": "8.0.13"
+  }
+}
