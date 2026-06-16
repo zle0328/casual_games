@@ -1,18 +1,19 @@
 name = "casual-games-backend"
 main = "src/index.ts"
 compatibility_date = "2024-11-27"
+account_id = "81d5b73148bf8fa53dd0c440eae8691f"
 
 # D1 数据库绑定
 [[d1_databases]]
 binding = "DB"
 database_name = "casual-games-db"
-database_id = "" # 部署后填写
+database_id = "6d0386f8-2341-4a3d-8c94-d30968986b1b"
 
 # KV 存储绑定（词条库）
 [[kv_namespaces]]
 binding = "KV"
-id = "" # 部署后填写
-preview_id = "" # 开发环境
+id = "a092f74140184447874b4b7d6ef1b214"
+preview_id = "eee93b66862a4482834fd0f5e448cc74"
 
 # CORS 配置
 [env.production]
