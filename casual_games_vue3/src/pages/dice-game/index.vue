@@ -4,26 +4,45 @@
     <view class="top-nav">
       <text class="back-btn" @tap="goBack">‹ 返回</text>
       <text class="page-title">摇骰子</text>
-      <text class="mode-switch" @tap="switchMode">
-        {{ isOnlineMode ? '单机模式' : '联机模式' }}
-      </text>
+      <view class="placeholder"></view>
     </view>
 
-    <!-- 骰子区域 -->
-    <view class="dice-area">
-      <view class="dice-container" :class="{ shaking: isShaking }">
-        <view class="dice" v-for="(value, index) in diceValues" :key="index">
-          <text class="dice-value">{{ value }}</text>
+    <!-- 3D骰盅区域 -->
+    <view class="dice-cup-area">
+      <!-- 骰盅 -->
+      <view class="dice-cup" :class="{ shaking: isShaking, opened: isOpened }">
+        <!-- 盖子 -->
+        <image
+          class="cup-cover"
+          :class="{ lifted: isOpened }"
+          src="/static/images/gaizi.png"
+          mode="aspectFit"
+        ></image>
+
+        <!-- 骰底 -->
+        <image
+          class="cup-bottom"
+          src="/static/images/toudi.png"
+          mode="aspectFit"
+        ></image>
+
+        <!-- 骰子结果 -->
+        <view class="dice-result" v-if="isOpened && diceValues.length > 0">
+          <image
+            v-for="(value, index) in diceValues"
+            :key="index"
+            class="dice-image"
+            :class="`dice-pos-${index}`"
+            :src="getDiceImage(value)"
+            mode="aspectFit"
+          ></image>
         </view>
       </view>
 
-      <!-- 结果显示 -->
-      <view class="result-section" v-if="showResult">
-        <text class="result-title">结果</text>
-        <view class="result-content">
-          <text class="result-text">总点数: {{ totalPoints }}</text>
-          <text class="result-desc" v-if="resultDesc">{{ resultDesc }}</text>
-        </view>
+      <!-- 结果提示 -->
+      <view class="result-tip" v-if="showResult">
+        <text class="result-text">{{ resultDesc }}</text>
+        <text class="result-points">总点数: {{ totalPoints }}</text>
       </view>
     </view>
 
@@ -31,56 +50,53 @@
     <view class="action-section">
       <button
         class="shake-btn"
-        :class="{ shaking: isShaking }"
-        @tap="shakeDice"
+        @tap="handleShake"
         :disabled="isShaking"
       >
-        {{ isShaking ? '摇骰子中...' : '🎲 摇一摇' }}
+        <text class="shake-text">{{ isShaking ? '摇动中...' : '摇' }}</text>
       </button>
+    </view>
 
-      <view class="tip-text">
-        <text>摇晃手机或点击按钮摇骰子</text>
+    <!-- 底部按钮组 -->
+    <view class="bottom-buttons">
+      <view class="btn-item" @tap="showGameRules">
+        <text class="btn-icon">📖</text>
+        <text class="btn-label">骰子规则</text>
+      </view>
+      <view class="btn-item">
+        <text class="btn-icon">👥</text>
+        <text class="btn-label">挑战好友</text>
+      </view>
+      <view class="btn-item" @tap="showPlayGuide">
+        <text class="btn-icon">❓</text>
+        <text class="btn-label">玩法</text>
       </view>
     </view>
 
-    <!-- 规则说明 -->
-    <view class="rules-section">
-      <view class="rules-header" @tap="toggleRules">
-        <text class="rules-title">📖 游戏规则</text>
-        <text class="rules-arrow" :class="{ expanded: showRules }">›</text>
-      </view>
-      <view class="rules-content" v-if="showRules">
-        <view class="rule-item">
-          <text class="rule-dot">•</text>
-          <text class="rule-text">豹子（三个相同）：最大，其他人喝</text>
+    <!-- 规则弹窗 -->
+    <view class="modal" v-if="showRules" @tap="showRules = false">
+      <view class="modal-content rules-modal" @tap.stop>
+        <view class="modal-header">
+          <text class="modal-title">游戏规则</text>
+          <text class="modal-close" @tap="showRules = false">×</text>
         </view>
-        <view class="rule-item">
-          <text class="rule-dot">•</text>
-          <text class="rule-text">顺子（连续三个）：第二大</text>
-        </view>
-        <view class="rule-item">
-          <text class="rule-dot">•</text>
-          <text class="rule-text">对子（两个相同）：按总点数比</text>
-        </view>
-        <view class="rule-item">
-          <text class="rule-dot">•</text>
-          <text class="rule-text">散点：按总点数比，最小喝</text>
-        </view>
-      </view>
-    </view>
-
-    <!-- 历史记录 -->
-    <view class="history-section" v-if="history.length > 0">
-      <text class="history-title">最近记录</text>
-      <view class="history-list">
-        <view class="history-item" v-for="(item, index) in history" :key="index">
-          <view class="history-dice">
-            <text v-for="(val, i) in item.values" :key="i" class="history-value">
-              {{ val }}
-            </text>
+        <view class="rules-list">
+          <view class="rule-item">
+            <text class="rule-label">豹子</text>
+            <text class="rule-desc">三个相同点数，最大</text>
           </view>
-          <text class="history-points">{{ item.total }}点</text>
-          <text class="history-type">{{ item.type }}</text>
+          <view class="rule-item">
+            <text class="rule-label">顺子</text>
+            <text class="rule-desc">连续三个数字</text>
+          </view>
+          <view class="rule-item">
+            <text class="rule-label">对子</text>
+            <text class="rule-desc">两个相同点数</text>
+          </view>
+          <view class="rule-item">
+            <text class="rule-label">散点</text>
+            <text class="rule-desc">比较总点数大小</text>
+          </view>
         </view>
       </view>
     </view>
@@ -88,500 +104,400 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useUserStore } from '../../stores/user';
-import { randomInt, vibrateShort, vibrateLong } from '../../utils/helpers';
-import { getRoom } from '../../api/room';
-import { saveGameResult } from '../../api/game';
+import { ref, computed } from 'vue';
 
-const userStore = useUserStore();
-
-const isOnlineMode = ref(false);
-const roomCode = ref('');
 const isShaking = ref(false);
+const isOpened = ref(false);
 const showResult = ref(false);
 const showRules = ref(false);
-const diceValues = ref([1, 1, 1]);
-const totalPoints = ref(3);
-const resultDesc = ref('');
-const history = ref<Array<{ values: number[]; total: number; type: string }>>([]);
+const diceValues = ref<number[]>([]);
 
-// 联机模式相关
-const roomPlayers = ref<Array<{ user_id: string; nickname: string; diceResult?: number[] }>>([]);
-const myRank = ref(0);
-let pollTimer: ReturnType<typeof setInterval> | null = null;
-
-let accelerometerListener: any = null;
-let lastShakeTime = 0;
-
-onMounted(() => {
-  // 从路由参数判断是否联机模式
-  const pages = getCurrentPages();
-  const currentPage = pages[pages.length - 1];
-  const options = (currentPage as any).options || {};
-
-  if (options.room) {
-    isOnlineMode.value = true;
-    roomCode.value = options.room;
-    loadRoomData();
-    startPolling();
-  }
-
-  // 监听加速度计（摇一摇）
-  startAccelerometer();
+// 计算总点数
+const totalPoints = computed(() => {
+  return diceValues.value.reduce((sum, val) => sum + val, 0);
 });
 
-onUnmounted(() => {
-  stopAccelerometer();
-  stopPolling();
+// 计算结果描述
+const resultDesc = computed(() => {
+  if (diceValues.value.length === 0) return '';
+
+  const values = [...diceValues.value].sort();
+
+  // 豹子
+  if (values[0] === values[1] && values[1] === values[2]) {
+    return `🎉 豹子 ${values[0]}${values[0]}${values[0]}`;
+  }
+
+  // 顺子
+  if (values[0] + 1 === values[1] && values[1] + 1 === values[2]) {
+    return `✨ 顺子 ${values.join('')}`;
+  }
+
+  // 对子
+  if (values[0] === values[1] || values[1] === values[2]) {
+    return `💫 对子`;
+  }
+
+  return `散点`;
 });
 
-// 加载房间数据
-async function loadRoomData() {
-  try {
-    const res = await getRoom(roomCode.value);
-    if (res.success && res.data) {
-      roomPlayers.value = res.data.players || [];
-    }
-  } catch (error) {
-    console.error('Load room error:', error);
-  }
-}
-
-// 开始轮询
-function startPolling() {
-  pollTimer = setInterval(() => {
-    loadRoomData();
-  }, 3000);
-}
-
-// 停止轮询
-function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
-}
-
-// 启动加速度计监听
-function startAccelerometer() {
-  uni.onAccelerometerChange((res) => {
-    const now = Date.now();
-    if (now - lastShakeTime < 1000) return; // 防抖
-
-    const acceleration = Math.abs(res.x) + Math.abs(res.y) + Math.abs(res.z);
-    if (acceleration > 25 && !isShaking.value) {
-      lastShakeTime = now;
-      shakeDice();
-    }
-  });
-
-  uni.startAccelerometer({
-    interval: 'normal',
-  });
-}
-
-// 停止加速度计监听
-function stopAccelerometer() {
-  uni.stopAccelerometer();
+// 获取骰子图片
+function getDiceImage(value: number) {
+  // 随机选择1-8个角度的其中一个
+  const angle = Math.floor(Math.random() * 8) + 1;
+  return `/static/images/touzi/touzi${value}-${angle}.png`;
 }
 
 // 摇骰子
-function shakeDice() {
+function handleShake() {
   if (isShaking.value) return;
 
-  isShaking.value = true;
+  // 重置状态
+  isOpened.value = false;
   showResult.value = false;
-  vibrateShort();
+  isShaking.value = true;
 
-  // 模拟摇骰子动画
-  let count = 0;
-  const interval = setInterval(() => {
+  // 震动反馈
+  uni.vibrateShort({});
+
+  // 模拟摇动 2秒
+  setTimeout(() => {
+    isShaking.value = false;
+
+    // 生成随机骰子结果
     diceValues.value = [
-      randomInt(1, 6),
-      randomInt(1, 6),
-      randomInt(1, 6),
+      Math.floor(Math.random() * 6) + 1,
+      Math.floor(Math.random() * 6) + 1,
+      Math.floor(Math.random() * 6) + 1,
     ];
-    count++;
 
-    if (count >= 15) {
-      clearInterval(interval);
-      finishShake();
-    }
-  }, 100);
+    // 打开骰盅
+    setTimeout(() => {
+      isOpened.value = true;
+      showResult.value = true;
+      uni.vibrateLong({});
+    }, 300);
+  }, 2000);
 }
 
-// 摇骰子完成
-async function finishShake() {
-  isShaking.value = false;
-  showResult.value = true;
+// 显示规则
+function showGameRules() {
+  showRules.value = true;
+}
 
-  // 计算结果
-  const sorted = [...diceValues.value].sort((a, b) => a - b);
-  totalPoints.value = sorted.reduce((sum, val) => sum + val, 0);
-
-  // 判断类型
-  let type = '';
-  if (sorted[0] === sorted[1] && sorted[1] === sorted[2]) {
-    type = '豹子';
-    resultDesc.value = '🎉 豹子！其他人喝！';
-    vibrateLong();
-  } else if (sorted[0] + 1 === sorted[1] && sorted[1] + 1 === sorted[2]) {
-    type = '顺子';
-    resultDesc.value = '✨ 顺子！不错哦！';
-    vibrateShort();
-  } else if (sorted[0] === sorted[1] || sorted[1] === sorted[2]) {
-    type = '对子';
-    resultDesc.value = '💪 对子，还可以';
-  } else {
-    type = '散点';
-    resultDesc.value = totalPoints.value <= 6 ? '😅 点数太小了' : '👍 还不错';
-  }
-
-  // 添加到历史记录
-  history.value.unshift({
-    values: [...diceValues.value],
-    total: totalPoints.value,
-    type,
+// 显示玩法
+function showPlayGuide() {
+  uni.showToast({
+    title: '摇一摇或点击按钮开始游戏',
+    icon: 'none'
   });
-
-  if (history.value.length > 10) {
-    history.value.pop();
-  }
-
-  // 联机模式：保存结果到后端
-  if (isOnlineMode.value && roomCode.value) {
-    try {
-      await saveGameResult({
-        room_code: roomCode.value,
-        user_id: userStore.userId,
-        game_type: 'dice',
-        result: 'draw', // 骰子游戏没有明确胜负
-        details: {
-          values: diceValues.value,
-          total: totalPoints.value,
-          type,
-        },
-      });
-    } catch (error) {
-      console.error('Save result error:', error);
-    }
-  }
-}
-
-// 切换模式
-function switchMode() {
-  if (!isOnlineMode.value) {
-    uni.showModal({
-      title: '提示',
-      content: '联机模式需要创建或加入房间，是否前往首页？',
-      success: (res) => {
-        if (res.confirm) {
-          uni.navigateBack();
-        }
-      },
-    });
-  } else {
-    // 退出联机模式
-    uni.showModal({
-      title: '确认退出',
-      content: '确定要退出联机模式吗？',
-      success: (res) => {
-        if (res.confirm) {
-          stopPolling();
-          uni.navigateBack();
-        }
-      },
-    });
-  }
-}
-
-// 展开/收起规则
-function toggleRules() {
-  showRules.value = !showRules.value;
 }
 
 // 返回
 function goBack() {
-  if (isOnlineMode.value) {
-    uni.showModal({
-      title: '确认退出',
-      content: '确定要退出房间吗？',
-      success: (res) => {
-        if (res.confirm) {
-          stopPolling();
-          uni.navigateBack();
-        }
-      },
-    });
-  } else {
-    uni.navigateBack();
-  }
+  uni.navigateBack();
 }
 </script>
 
-<style scoped lang="scss">
+<style lang="scss" scoped>
 .dice-game-container {
   min-height: 100vh;
-  background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-  padding-bottom: 40rpx;
+  background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+  padding: 0;
+  position: relative;
 }
 
-// 顶部导航
+/* 顶部导航 */
 .top-nav {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 32rpx 32rpx;
+  align-items: center;
+  padding: 32rpx 40rpx;
   padding-top: calc(32rpx + env(safe-area-inset-top));
-
-  .back-btn,
-  .mode-switch {
-    font-size: 28rpx;
-    color: rgba(255, 255, 255, 0.9);
-    padding: 12rpx 24rpx;
-    border-radius: 24rpx;
-    background: rgba(255, 255, 255, 0.2);
-  }
-
-  .page-title {
-    font-size: 36rpx;
-    font-weight: 700;
-    color: #fff;
-  }
 }
 
-// 骰子区域
-.dice-area {
+.back-btn, .placeholder {
+  width: 120rpx;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 32rpx;
+}
+
+.page-title {
+  flex: 1;
+  text-align: center;
+  color: #fff;
+  font-size: 36rpx;
+  font-weight: bold;
+}
+
+/* 骰盅区域 */
+.dice-cup-area {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   padding: 80rpx 0;
+  min-height: 800rpx;
+}
 
-  .dice-container {
-    display: flex;
-    gap: 24rpx;
-    margin-bottom: 48rpx;
+.dice-cup {
+  position: relative;
+  width: 600rpx;
+  height: 600rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1000px;
+}
 
-    &.shaking .dice {
-      animation: shake 0.1s infinite;
-    }
+/* 盖子 */
+.cup-cover {
+  position: absolute;
+  width: 500rpx;
+  height: 500rpx;
+  z-index: 10;
+  transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: center bottom;
+}
 
-    .dice {
-      width: 160rpx;
-      height: 160rpx;
-      background: #fff;
-      border-radius: 24rpx;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 16rpx 48rpx rgba(0, 0, 0, 0.3);
+.cup-cover.lifted {
+  transform: translateY(-200rpx) translateZ(100rpx) rotateX(-15deg) scale(0.9);
+  opacity: 0.7;
+}
 
-      .dice-value {
-        font-size: 88rpx;
-        font-weight: 700;
-        color: #667eea;
-      }
-    }
-  }
+/* 骰底 */
+.cup-bottom {
+  position: absolute;
+  width: 600rpx;
+  height: 600rpx;
+  z-index: 1;
+}
 
-  .result-section {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 24rpx;
-    padding: 32rpx 48rpx;
-    min-width: 500rpx;
-    text-align: center;
+/* 摇动动画 */
+.dice-cup.shaking .cup-cover {
+  animation: shake 0.5s infinite;
+}
 
-    .result-title {
-      font-size: 28rpx;
-      color: #999;
-      margin-bottom: 16rpx;
-      display: block;
-    }
-
-    .result-content {
-      display: flex;
-      flex-direction: column;
-      gap: 12rpx;
-
-      .result-text {
-        font-size: 40rpx;
-        font-weight: 700;
-        color: #333;
-      }
-
-      .result-desc {
-        font-size: 28rpx;
-        color: #667eea;
-      }
-    }
-  }
+.dice-cup.shaking .cup-bottom {
+  animation: shake 0.5s infinite 0.1s;
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0) rotate(0deg); }
-  25% { transform: translateX(-10rpx) rotate(-5deg); }
-  75% { transform: translateX(10rpx) rotate(5deg); }
+  0%, 100% { transform: rotate(0deg) translateX(0); }
+  10% { transform: rotate(-5deg) translateX(-10rpx); }
+  20% { transform: rotate(5deg) translateX(10rpx); }
+  30% { transform: rotate(-5deg) translateX(-10rpx); }
+  40% { transform: rotate(5deg) translateX(10rpx); }
+  50% { transform: rotate(-5deg) translateX(-10rpx); }
+  60% { transform: rotate(5deg) translateX(10rpx); }
+  70% { transform: rotate(-5deg) translateX(-10rpx); }
+  80% { transform: rotate(5deg) translateX(10rpx); }
+  90% { transform: rotate(-5deg) translateX(-10rpx); }
 }
 
-// 操作区域
+/* 骰子结果 */
+.dice-result {
+  position: absolute;
+  width: 400rpx;
+  height: 400rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  animation: diceAppear 0.5s ease-out;
+}
+
+@keyframes diceAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.dice-image {
+  position: absolute;
+  width: 120rpx;
+  height: 120rpx;
+  filter: drop-shadow(0 8rpx 16rpx rgba(0, 0, 0, 0.3));
+}
+
+.dice-pos-0 {
+  left: 50rpx;
+  top: 100rpx;
+  transform: rotate(-15deg);
+}
+
+.dice-pos-1 {
+  left: 140rpx;
+  top: 150rpx;
+  transform: rotate(8deg);
+}
+
+.dice-pos-2 {
+  left: 90rpx;
+  top: 220rpx;
+  transform: rotate(-8deg);
+}
+
+/* 结果提示 */
+.result-tip {
+  margin-top: 60rpx;
+  text-align: center;
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.result-text {
+  display: block;
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #ffd700;
+  margin-bottom: 16rpx;
+  text-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.5);
+}
+
+.result-points {
+  display: block;
+  font-size: 32rpx;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* 摇骰子按钮 */
 .action-section {
+  position: fixed;
+  bottom: 200rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+}
+
+.shake-btn {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+  border: none;
+  box-shadow: 0 16rpx 32rpx rgba(255, 107, 107, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shake-btn:disabled {
+  opacity: 0.6;
+}
+
+.shake-text {
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #fff;
+}
+
+/* 底部按钮 */
+.bottom-buttons {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 32rpx;
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20rpx);
+  display: flex;
+  justify-content: space-around;
+}
+
+.btn-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0 48rpx;
-  margin-bottom: 48rpx;
-
-  .shake-btn {
-    width: 100%;
-    height: 120rpx;
-    background: rgba(255, 255, 255, 0.95);
-    color: #667eea;
-    border: none;
-    border-radius: 60rpx;
-    font-size: 36rpx;
-    font-weight: 700;
-    box-shadow: 0 16rpx 48rpx rgba(0, 0, 0, 0.2);
-    transition: transform 0.3s;
-
-    &:active:not(:disabled) {
-      transform: scale(0.95);
-    }
-
-    &:disabled {
-      opacity: 0.7;
-    }
-
-    &.shaking {
-      animation: pulse 0.5s infinite;
-    }
-  }
-
-  .tip-text {
-    margin-top: 24rpx;
-    font-size: 24rpx;
-    color: rgba(255, 255, 255, 0.8);
-  }
+  gap: 8rpx;
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+.btn-icon {
+  font-size: 48rpx;
 }
 
-// 规则说明
-.rules-section {
-  margin: 0 32rpx 32rpx;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 24rpx;
+.btn-label {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* 弹窗 */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 32rpx;
+  width: 600rpx;
+  max-height: 80vh;
   overflow: hidden;
-
-  .rules-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 32rpx 24rpx;
-    cursor: pointer;
-
-    .rules-title {
-      font-size: 28rpx;
-      font-weight: 600;
-      color: #333;
-    }
-
-    .rules-arrow {
-      font-size: 40rpx;
-      color: #999;
-      transition: transform 0.3s;
-
-      &.expanded {
-        transform: rotate(90deg);
-      }
-    }
-  }
-
-  .rules-content {
-    padding: 0 24rpx 32rpx;
-
-    .rule-item {
-      display: flex;
-      margin-bottom: 16rpx;
-
-      .rule-dot {
-        font-size: 28rpx;
-        color: #667eea;
-        margin-right: 12rpx;
-      }
-
-      .rule-text {
-        flex: 1;
-        font-size: 26rpx;
-        color: #666;
-        line-height: 1.6;
-      }
-    }
-  }
 }
 
-// 历史记录
-.history-section {
-  margin: 0 32rpx;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 24rpx;
-  padding: 32rpx 24rpx;
+.modal-header {
+  padding: 40rpx 32rpx;
+  border-bottom: 1rpx solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
-  .history-title {
-    font-size: 28rpx;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 24rpx;
-    display: block;
-  }
+.modal-title {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+}
 
-  .history-list {
-    .history-item {
-      display: flex;
-      align-items: center;
-      padding: 16rpx 0;
-      border-bottom: 1rpx solid #f5f5f5;
+.modal-close {
+  font-size: 48rpx;
+  color: #999;
+  width: 60rpx;
+  height: 60rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-      &:last-child {
-        border-bottom: none;
-      }
+.rules-list {
+  padding: 32rpx;
+}
 
-      .history-dice {
-        display: flex;
-        gap: 8rpx;
-        flex: 1;
+.rule-item {
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+  background: #f8f9fa;
+  border-radius: 16rpx;
+  display: flex;
+  justify-content: space-between;
+}
 
-        .history-value {
-          width: 48rpx;
-          height: 48rpx;
-          background: #f5f5f5;
-          border-radius: 8rpx;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 28rpx;
-          font-weight: 700;
-          color: #667eea;
-        }
-      }
+.rule-label {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #667eea;
+}
 
-      .history-points {
-        font-size: 24rpx;
-        color: #666;
-        margin: 0 16rpx;
-      }
-
-      .history-type {
-        font-size: 22rpx;
-        color: #fff;
-        background: #667eea;
-        padding: 4rpx 12rpx;
-        border-radius: 12rpx;
-      }
-    }
-  }
+.rule-desc {
+  font-size: 28rpx;
+  color: #666;
 }
 </style>
