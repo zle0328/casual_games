@@ -161,6 +161,7 @@ function handleShake() {
   domeLift.value = 0; // 先盖回
   isShaking.value = true;
 
+  playShakeSound();
   safeVibrate('short');
   const buzz = setInterval(() => safeVibrate('short'), 260);
 
@@ -178,6 +179,18 @@ function safeVibrate(type: 'short' | 'long') {
     else uni.vibrateLong({});
   } catch (e) {
     /* 部分平台不支持，忽略 */
+  }
+}
+
+// 摇骰音效
+let shakeAudio: any = null;
+function playShakeSound() {
+  try {
+    if (!shakeAudio) return;
+    shakeAudio.stop();
+    shakeAudio.play();
+  } catch (e) {
+    /* 音频播放失败忽略 */
   }
 }
 
@@ -240,17 +253,28 @@ function goBack() {
   uni.navigateBack();
 }
 
-// 摇一摇手势触发
+// 摇一摇手势触发（阈值越大越不灵敏；需连续多次强晃动才触发，避免轻晃误触）
+const SHAKE_THRESHOLD = 3.0; // 单次采样的加速度变化阈值
+const SHAKE_COOLDOWN = 1500; // 两次触发的最小间隔 ms
+const SHAKE_CONFIRM = 2; // 需要连续达到阈值的采样次数
 let lastAccel = { x: 0, y: 0, z: 0 };
 let shakeCooldown = 0;
+let strongCount = 0;
 function onAccel(res: { x: number; y: number; z: number }) {
   const delta =
     Math.abs(res.x - lastAccel.x) +
     Math.abs(res.y - lastAccel.y) +
     Math.abs(res.z - lastAccel.z);
   lastAccel = { x: res.x, y: res.y, z: res.z };
+  strongCount = delta > SHAKE_THRESHOLD ? strongCount + 1 : 0;
   const now = Date.now();
-  if (delta > 1.8 && !isShaking.value && !shakeDisabled.value && now - shakeCooldown > 1200) {
+  if (
+    strongCount >= SHAKE_CONFIRM &&
+    !isShaking.value &&
+    !shakeDisabled.value &&
+    now - shakeCooldown > SHAKE_COOLDOWN
+  ) {
+    strongCount = 0;
     shakeCooldown = now;
     handleShake();
   }
@@ -262,6 +286,12 @@ onMounted(() => {
     if (info && info.windowWidth) rpxFactor = 750 / info.windowWidth;
   } catch (e) {
     /* 取不到屏宽时用默认系数 */
+  }
+  try {
+    shakeAudio = uni.createInnerAudioContext();
+    shakeAudio.src = '/static/video/touzhi.mp3';
+  } catch (e) {
+    /* 音频不可用时忽略 */
   }
   try {
     uni.startAccelerometer({ interval: 'normal' });
@@ -278,12 +308,28 @@ onUnmounted(() => {
   } catch (e) {
     /* ignore */
   }
+  try {
+    if (shakeAudio) {
+      shakeAudio.stop();
+      shakeAudio.destroy();
+      shakeAudio = null;
+    }
+  } catch (e) {
+    /* ignore */
+  }
 });
 </script>
 
 <style lang="scss" scoped>
+/* 禁止页面整体滚动 */
+page {
+  height: 100%;
+  overflow: hidden;
+}
+
 .dice-game-container {
   min-height: 100vh;
+  height: 100vh;
   background: radial-gradient(120% 80% at 50% 18%, #3b4a5e 0%, #2c3e50 45%, #222d3a 100%);
   position: relative;
   overflow: hidden;

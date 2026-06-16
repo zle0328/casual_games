@@ -25,7 +25,8 @@
 			"path": "pages/dice-game/index",
 			"style": {
 				"navigationBarTitleText": "摇骰子",
-				"navigationStyle": "custom"
+				"navigationStyle": "custom",
+				"disableScroll": true
 			}
 		},
 		{
