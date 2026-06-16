@@ -1,0 +1,27 @@
+{
+  "name": "casual-games",
+  "version": "1.0.0",
+  "description": "派对游戏小程序 - 摇骰子 + 谁是卧底",
+  "private": true,
+  "workspaces": [
+    "casual_games_uniapp",
+    "casual_games_backend"
+  ],
+  "scripts": {
+    "dev:h5": "npm run dev -w casual_games_uniapp",
+    "build:h5": "npm run build:h5 -w casual_games_uniapp",
+    "dev:mp-weixin": "npm run dev:mp-weixin -w casual_games_uniapp",
+    "dev:backend": "npm run dev -w casual_games_backend",
+    "deploy:backend": "npm run deploy -w casual_games_backend",
+    "deploy:pages": "npm run build:h5 -w casual_games_uniapp && wrangler pages deploy casual_games_uniapp/dist/build/h5"
+  },
+  "keywords": [
+    "uniapp",
+    "cloudflare",
+    "party-game",
+    "dice",
+    "spy-game"
+  ],
+  "author": "",
+  "license": "MIT"
+}
