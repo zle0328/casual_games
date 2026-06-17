@@ -379,7 +379,28 @@ onMounted(() => {
   }
   // #endif
   try {
-    requestShakeSensor();
+    // #ifdef H5
+    // iOS 13+ 要求 DeviceMotionEvent.requestPermission() 必须在用户手势(同步)内触发，
+    // onMounted 属于非手势上下文，直接调用会被静默拒绝 -> 传感器永不启动。
+    // 因此先注册一次性手势监听，等用户首次点击页面时再请求授权并启动传感器。
+    const needsPermission =
+      typeof (window as any).DeviceMotionEvent?.requestPermission === 'function';
+    if (needsPermission) {
+      const grant = () => {
+        requestShakeSensor();
+        document.removeEventListener('touchend', grant);
+        document.removeEventListener('click', grant);
+      };
+      document.addEventListener('touchend', grant);
+      document.addEventListener('click', grant);
+    } else {
+      // Android / 旧版 iOS 无需授权
+      startShakeSensor();
+    }
+    // #endif
+    // #ifndef H5
+    startShakeSensor();
+    // #endif
   } catch (e) {
     console.warn('摇一摇初始化失败:', e);
   }
