@@ -43,22 +43,6 @@
 			}
 		}
 	],
-	"tabBar": {
-		"color": "#999999",
-		"selectedColor": "#667eea",
-		"backgroundColor": "#ffffff",
-		"borderStyle": "black",
-		"list": [
-			{
-				"pagePath": "pages/index/index",
-				"text": "首页"
-			},
-			{
-				"pagePath": "pages/profile/index",
-				"text": "我的"
-			}
-		]
-	},
 	"globalStyle": {
 		"navigationBarTextStyle": "white",
 		"navigationBarTitleText": "派对游戏",

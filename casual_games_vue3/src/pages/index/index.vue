@@ -66,18 +66,6 @@
       </view>
     </view>
 
-    <!-- 底部导航 -->
-    <view class="bottom-nav">
-      <view class="nav-item active">
-        <text class="nav-icon">🏠</text>
-        <text class="nav-text">首页</text>
-      </view>
-      <view class="nav-item" @tap="goProfile">
-        <text class="nav-icon">👤</text>
-        <text class="nav-text">我的</text>
-      </view>
-    </view>
-
     <!-- 加入房间弹窗 -->
     <view class="modal" v-if="showJoinModal" @tap="closeJoinModal">
       <view class="modal-content" @tap.stop>
@@ -173,7 +161,7 @@ async function goSpyGame() {
 
 // 跳转我的页面
 function goProfile() {
-  uni.switchTab({ url: '/pages/profile/index' });
+  uni.navigateTo({ url: '/pages/profile/index' });
 }
 
 // 显示加入房间弹窗

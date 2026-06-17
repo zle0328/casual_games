@@ -272,7 +272,7 @@ function goToSettings() {
 
 // 跳转到首页
 function goHome() {
-  uni.switchTab({ url: '/pages/index/index' });
+  uni.navigateBack({ delta: 1 });
 }
 </script>
 
