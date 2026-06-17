@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS room_players (
   room_code TEXT NOT NULL,
   user_id TEXT NOT NULL,
   role TEXT, -- dice: null, spy: 'civilian'/'spy'/'blank'
+  word TEXT, -- spy: player's word (civilian_word/spy_word), blank: null
   is_alive INTEGER DEFAULT 1,
   joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (room_code) REFERENCES rooms(room_code),

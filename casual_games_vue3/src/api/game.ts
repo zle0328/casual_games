@@ -31,3 +31,10 @@ export function assignSpyRoles(data: {
 }) {
   return post<{ message: string; word: SpyWord }>('/api/game/spy-roles', data);
 }
+
+/**
+ * 获取我的身份和词条
+ */
+export function getMyIdentity(roomCode: string, userId: string) {
+  return get<{ role: 'civilian' | 'spy' | 'blank'; word: string | null }>(`/api/game/my-identity?room_code=${roomCode}&user_id=${userId}`);
+}

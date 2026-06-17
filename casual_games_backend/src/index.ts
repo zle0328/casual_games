@@ -2,7 +2,7 @@ import type { Env } from './types';
 import { corsResponse, errorResponse } from './utils/helpers';
 import { handleCreateUser, handleGetUser, handleGetUserRecords } from './routes/user';
 import { handleCreateRoom, handleJoinRoom, handleGetRoom, handleStartGame } from './routes/room';
-import { handleSaveGameResult, handleGetSpyWords, handleAssignSpyRoles } from './routes/game';
+import { handleSaveGameResult, handleGetSpyWords, handleAssignSpyRoles, handleGetMyIdentity } from './routes/game';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -52,6 +52,14 @@ export default {
       }
       if (url.pathname === '/api/game/spy-roles' && request.method === 'POST') {
         return handleAssignSpyRoles(request, env);
+      }
+      if (url.pathname.match(/^\/api\/game\/my-identity$/) && request.method === 'GET') {
+        const roomCode = url.searchParams.get('room_code');
+        const userId = url.searchParams.get('user_id');
+        if (!roomCode || !userId) {
+          return errorResponse('参数不完整', 400);
+        }
+        return handleGetMyIdentity(roomCode, userId, env);
       }
 
       // 健康检查

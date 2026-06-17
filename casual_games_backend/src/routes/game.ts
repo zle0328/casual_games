@@ -84,8 +84,31 @@ export async function handleGetSpyWords(env: Env) {
 }
 
 /**
- * 分配谁是卧底角色
+ * 获取我的身份和词条
  */
+export async function handleGetMyIdentity(roomCode: string, userId: string, env: Env) {
+  try {
+    const player = await env.DB.prepare(
+      'SELECT role, word FROM room_players WHERE room_code = ? AND user_id = ?'
+    ).bind(roomCode, userId).first();
+
+    if (!player) {
+      return errorResponse('玩家不在房间中', 404);
+    }
+
+    if (!player.role) {
+      return errorResponse('角色尚未分配', 400);
+    }
+
+    return jsonResponse({
+      role: player.role,
+      word: player.word,
+    });
+  } catch (error) {
+    console.error('Get my identity error:', error);
+    return errorResponse('获取身份失败', 500);
+  }
+}
 export async function handleAssignSpyRoles(request: Request, env: Env) {
   const body = await parseJsonBody<{
     room_code: string;
@@ -128,18 +151,28 @@ export async function handleAssignSpyRoles(request: Request, env: Env) {
       [roles[i], roles[j]] = [roles[j], roles[i]];
     }
 
-    // 更新玩家角色
-    for (let i = 0; i < players.length; i++) {
-      await env.DB.prepare(
-        'UPDATE room_players SET role = ? WHERE room_code = ? AND user_id = ?'
-      ).bind(roles[i], body.room_code, players[i].user_id).run();
-    }
-
     // 随机选择词条
     const wordsData = await handleGetSpyWords(env);
     const wordsResponse = await wordsData.json();
     const words = wordsResponse.data.words || wordsResponse.data;
     const selectedWord = words[Math.floor(Math.random() * words.length)];
+
+    // 更新玩家角色和词条
+    for (let i = 0; i < players.length; i++) {
+      const role = roles[i];
+      let word = null;
+
+      if (role === 'spy') {
+        word = selectedWord.spy;
+      } else if (role === 'civilian') {
+        word = selectedWord.civilian;
+      }
+      // blank 角色 word 保持 null
+
+      await env.DB.prepare(
+        'UPDATE room_players SET role = ?, word = ? WHERE room_code = ? AND user_id = ?'
+      ).bind(role, word, body.room_code, players[i].user_id).run();
+    }
 
     return jsonResponse({
       message: '角色分配成功',

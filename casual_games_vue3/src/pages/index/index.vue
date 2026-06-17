@@ -102,7 +102,7 @@
 import { ref, onMounted } from 'vue';
 import { useUserStore } from '../../stores/user';
 import { getUserRecords } from '../../api/user';
-import { joinRoom } from '../../api/room';
+import { joinRoom, createRoom } from '../../api/room';
 import { formatTime } from '../../utils/helpers';
 import type { GameRecord } from '../../types';
 
@@ -135,8 +135,40 @@ function goDiceGame() {
 }
 
 // 跳转谁是卧底游戏
-function goSpyGame() {
-  uni.navigateTo({ url: '/pages/spy-game/index' });
+async function goSpyGame() {
+  if (!userStore.isLoggedIn) {
+    uni.showToast({ title: '请先登录', icon: 'none' });
+    return;
+  }
+
+  try {
+    uni.showLoading({ title: '创建房间中...' });
+
+    const res = await createRoom({
+      creator_id: userStore.userId,
+      game_type: 'spy',
+      settings: {
+        max_players: 8,
+        spy_count: 1,
+        blank_count: 0,
+      },
+    });
+
+    uni.hideLoading();
+
+    if (res.success && res.data) {
+      // 跳转到房间页面
+      uni.navigateTo({
+        url: `/pages/room/index?code=${res.data.room_code}`,
+      });
+    }
+  } catch (error: any) {
+    uni.hideLoading();
+    uni.showToast({
+      title: error.message || '创建房间失败',
+      icon: 'none',
+    });
+  }
 }
 
 // 跳转我的页面

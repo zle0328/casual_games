@@ -8,7 +8,7 @@
     </view>
 
     <!-- 游戏设置 (初始状态) -->
-    <view class="setup-section" v-if="gameState === 'setup'">
+    <view class="setup-section" v-if="gameState === 'setup' && !isOnlineMode">
       <view class="setup-card">
         <view class="setup-item">
           <text class="setup-label">玩家人数</text>
@@ -148,7 +148,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useUserStore } from '../../stores/user';
 import { shuffle } from '../../utils/helpers';
 import { getRoom } from '../../api/room';
-import { assignSpyRoles, saveGameResult } from '../../api/game';
+import { assignSpyRoles, saveGameResult, getMyIdentity } from '../../api/game';
 
 type GameState = 'setup' | 'playing' | 'voting' | 'ended';
 type Role = 'civilian' | 'spy' | 'blank';
@@ -200,6 +200,7 @@ onMounted(() => {
     isOnlineMode.value = true;
     roomCode.value = options.room;
     loadRoomData();
+    startPolling();
   }
 });
 
@@ -213,6 +214,7 @@ async function loadRoomData() {
     const res = await getRoom(roomCode.value);
     if (res.success && res.data) {
       playerCount.value = res.data.players?.length || 5;
+
       // 从房间设置加载配置
       const settings = typeof res.data.settings === 'string'
         ? JSON.parse(res.data.settings)
@@ -220,6 +222,11 @@ async function loadRoomData() {
       if (settings) {
         spyCount.value = settings.spy_count || 1;
         blankCount.value = settings.blank_count || 0;
+      }
+
+      // 如果游戏已开始，获取身份并进入游戏
+      if (res.data.status === 'playing' && gameState.value === 'setup') {
+        await startGame();
       }
     }
   } catch (error) {
@@ -276,20 +283,23 @@ async function startGame() {
   // 联机模式：从后端获取角色分配
   if (isOnlineMode.value && roomCode.value) {
     try {
-      uni.showLoading({ title: '分配角色中...' });
+      uni.showLoading({ title: '加载身份中...' });
 
-      const res = await assignSpyRoles({
-        room_code: roomCode.value,
-        spy_count: spyCount.value,
-        blank_count: blankCount.value,
-      });
+      const res = await getMyIdentity(roomCode.value, userStore.userId);
 
       uni.hideLoading();
 
       if (res.success && res.data) {
-        // TODO: 从后端获取我的角色和词条
-        // 这里暂时使用单机模式的逻辑
-        startLocalGame();
+        myRole.value = res.data.role;
+        myWord.value = res.data.word || '';
+
+        gameState.value = 'playing';
+        identityRevealed.value = false;
+
+        uni.showToast({
+          title: '游戏开始！',
+          icon: 'success',
+        });
       }
     } catch (error: any) {
       uni.hideLoading();
