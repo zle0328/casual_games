@@ -192,10 +192,12 @@ async function handleJoinRoom() {
     uni.hideLoading();
 
     if (res.success) {
+      // 先保存房间码，再关闭弹窗（closeJoinModal 会清空 roomCode）
+      const code = roomCode.value.toUpperCase();
       closeJoinModal();
       // 跳转到房间页面
       uni.navigateTo({
-        url: `/pages/room/index?code=${roomCode.value.toUpperCase()}`,
+        url: `/pages/room/index?code=${code}`,
       });
     }
   } catch (error: any) {
