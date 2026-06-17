@@ -11,14 +11,6 @@
       <text class="dice-count-label">骰子数 {{ diceCount }}</text>
     </view>
 
-    <!-- 禁止摇骰开关 -->
-    <view class="lock-chip" :class="{ on: shakeDisabled }" @tap="toggleShakeLock">
-      <text class="lock-chip-label">禁止摇骰</text>
-      <view class="lock-switch">
-        <view class="lock-knob"></view>
-      </view>
-    </view>
-
     <!-- 3D骰盅区域 -->
     <view class="dice-cup-area">
       <view class="cup-wrap" :class="{ shaking: isShaking }">
@@ -63,9 +55,14 @@
       </view>
     </view>
 
-    <!-- 摇骰子按钮（禁止时隐藏） -->
-    <view class="action-section" v-if="!shakeDisabled">
+    <!-- 底部控制条：摇按钮居中，骰子开关在右侧 -->
+    <view class="control-bar">
+      <!-- 左占位，保证摇按钮在屏幕居中 -->
+      <view class="ctrl-side"></view>
+
+      <!-- 摇按钮（禁止时隐藏，占位保留以维持居中） -->
       <button
+        v-if="!shakeDisabled"
         class="shake-btn"
         :class="{ active: isShaking }"
         @tap="handleShake"
@@ -73,11 +70,15 @@
       >
         <text class="shake-text">{{ isShaking ? '⋯' : '摇' }}</text>
       </button>
-    </view>
+      <view v-else class="shake-placeholder"></view>
 
-    <!-- 禁止摇骰提示 -->
-    <view class="locked-hint" v-else>
-      <text class="locked-hint-text">摇骰已禁止</text>
+      <!-- 右侧：禁止摇骰开关（蓝底骰子 / 禁止符） -->
+      <view class="ctrl-side">
+        <view class="dice-toggle" :class="{ disabled: shakeDisabled }" @tap="toggleShakeLock">
+          <image class="dice-toggle-img" src="/static/images/touzi/touzi6-7.png" mode="widthFix"></image>
+          <view class="ban-overlay" v-if="shakeDisabled"></view>
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -472,78 +473,6 @@ page {
   color: rgba(255, 255, 255, 0.92);
 }
 
-/* 禁止摇骰开关（右上角胶囊，与骰子数胶囊对称） */
-.lock-chip {
-  position: fixed;
-  top: calc(118rpx + env(safe-area-inset-top));
-  right: 32rpx;
-  z-index: 80;
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  padding: 12rpx 18rpx 12rpx 24rpx;
-  border-radius: 999rpx;
-  background: rgba(0, 0, 0, 0.32);
-  border: 1rpx solid rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(16rpx);
-  transition: background 0.25s ease, border-color 0.25s ease;
-}
-.lock-chip.on {
-  background: rgba(238, 90, 111, 0.28);
-  border-color: rgba(238, 90, 111, 0.5);
-}
-
-.lock-chip-label {
-  font-size: 28rpx;
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.lock-switch {
-  position: relative;
-  width: 72rpx;
-  height: 40rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.22);
-  transition: background 0.25s ease;
-}
-.lock-chip.on .lock-switch {
-  background: #ee5a6f;
-}
-
-.lock-knob {
-  position: absolute;
-  top: 4rpx;
-  left: 4rpx;
-  width: 32rpx;
-  height: 32rpx;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.3);
-  transition: transform 0.25s cubic-bezier(0.34, 1.4, 0.5, 1);
-}
-.lock-chip.on .lock-knob {
-  transform: translateX(32rpx);
-}
-
-/* 禁止摇骰提示 */
-.locked-hint {
-  position: fixed;
-  bottom: 138rpx;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 100;
-  padding: 20rpx 44rpx;
-  border-radius: 999rpx;
-  background: rgba(0, 0, 0, 0.32);
-  border: 1rpx solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(16rpx);
-}
-.locked-hint-text {
-  font-size: 30rpx;
-  color: rgba(255, 255, 255, 0.75);
-  letter-spacing: 2rpx;
-}
-
 /* 骰盅区域 */
 .dice-cup-area {
   display: flex;
@@ -660,8 +589,8 @@ page {
   50% { transform: scaleX(0.82); opacity: 0.6; }
 }
 
-/* 摇骰子按钮 */
-.action-section {
+/* 底部控制条 */
+.control-bar {
   position: fixed;
   bottom: 96rpx;
   left: 50%;
@@ -669,7 +598,77 @@ page {
   z-index: 100;
   display: flex;
   align-items: center;
-  gap: 28rpx;
+  justify-content: center;
+  gap: 56rpx;
+}
+
+/* 两侧等宽，保证摇按钮屏幕居中 */
+.ctrl-side {
+  width: 140rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 摇按钮隐藏时的占位，维持居中布局 */
+.shake-placeholder {
+  width: 168rpx;
+  height: 168rpx;
+}
+
+/* 右侧骰子开关 */
+.dice-toggle {
+  position: relative;
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5bc0f8 0%, #3aa0e8 100%);
+  box-shadow: 0 12rpx 28rpx rgba(58, 160, 232, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+.dice-toggle.disabled {
+  background: transparent;
+  box-shadow: none;
+}
+
+.dice-toggle-img {
+  width: 104rpx;
+  filter: drop-shadow(0 6rpx 8rpx rgba(0, 0, 0, 0.4));
+}
+
+/* 红色禁止符（圆环 + 斜杠） */
+.ban-overlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 140rpx;
+  height: 140rpx;
+  margin-left: -70rpx;
+  margin-top: -70rpx;
+  pointer-events: none;
+}
+.ban-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 4rpx;
+  border: 12rpx solid #d8362f;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.ban-overlay::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 12rpx;
+  right: 12rpx;
+  height: 12rpx;
+  margin-top: -6rpx;
+  background: #d8362f;
+  border-radius: 6rpx;
+  transform: rotate(-45deg);
 }
 
 .shake-btn {
