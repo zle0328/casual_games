@@ -11,6 +11,14 @@
       <text class="dice-count-label">骰子数 {{ diceCount }}</text>
     </view>
 
+    <!-- 禁止摇骰开关 -->
+    <view class="lock-chip" :class="{ on: shakeDisabled }" @tap="toggleShakeLock">
+      <text class="lock-chip-label">禁止摇骰</text>
+      <view class="lock-switch">
+        <view class="lock-knob"></view>
+      </view>
+    </view>
+
     <!-- 3D骰盅区域 -->
     <view class="dice-cup-area">
       <view class="cup-wrap" :class="{ shaking: isShaking }">
@@ -55,19 +63,21 @@
       </view>
     </view>
 
-    <!-- 摇骰子按钮 -->
-    <view class="action-section">
+    <!-- 摇骰子按钮（禁止时隐藏） -->
+    <view class="action-section" v-if="!shakeDisabled">
       <button
         class="shake-btn"
-        :class="{ active: isShaking, locked: shakeDisabled }"
+        :class="{ active: isShaking }"
         @tap="handleShake"
         :disabled="isShaking"
       >
         <text class="shake-text">{{ isShaking ? '⋯' : '摇' }}</text>
       </button>
-      <button class="lock-btn" :class="{ locked: shakeDisabled }" @tap="toggleShakeLock">
-        <text class="lock-text">{{ shakeDisabled ? '允许摇骰' : '禁止摇骰' }}</text>
-      </button>
+    </view>
+
+    <!-- 禁止摇骰提示 -->
+    <view class="locked-hint" v-else>
+      <text class="locked-hint-text">摇骰已禁止</text>
     </view>
   </view>
 </template>
@@ -462,6 +472,78 @@ page {
   color: rgba(255, 255, 255, 0.92);
 }
 
+/* 禁止摇骰开关（右上角胶囊，与骰子数胶囊对称） */
+.lock-chip {
+  position: fixed;
+  top: calc(118rpx + env(safe-area-inset-top));
+  right: 32rpx;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 12rpx 18rpx 12rpx 24rpx;
+  border-radius: 999rpx;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1rpx solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(16rpx);
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+.lock-chip.on {
+  background: rgba(238, 90, 111, 0.28);
+  border-color: rgba(238, 90, 111, 0.5);
+}
+
+.lock-chip-label {
+  font-size: 28rpx;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.lock-switch {
+  position: relative;
+  width: 72rpx;
+  height: 40rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.22);
+  transition: background 0.25s ease;
+}
+.lock-chip.on .lock-switch {
+  background: #ee5a6f;
+}
+
+.lock-knob {
+  position: absolute;
+  top: 4rpx;
+  left: 4rpx;
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.3);
+  transition: transform 0.25s cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+.lock-chip.on .lock-knob {
+  transform: translateX(32rpx);
+}
+
+/* 禁止摇骰提示 */
+.locked-hint {
+  position: fixed;
+  bottom: 138rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  padding: 20rpx 44rpx;
+  border-radius: 999rpx;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1rpx solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(16rpx);
+}
+.locked-hint-text {
+  font-size: 30rpx;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 2rpx;
+}
+
 /* 骰盅区域 */
 .dice-cup-area {
   display: flex;
@@ -605,10 +687,6 @@ page {
 .shake-btn::after { border: none; }
 .shake-btn.active {
   animation: btnPulse 0.5s infinite;
-}
-.shake-btn.locked {
-  background: linear-gradient(135deg, #8a939c 0%, #6b747d 100%);
-  box-shadow: 0 16rpx 36rpx rgba(0, 0, 0, 0.3);
 }
 .shake-btn:disabled { opacity: 0.85; }
 
