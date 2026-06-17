@@ -7,6 +7,10 @@
       <view class="placeholder"></view>
     </view>
 
+    <view class="dice-count-chip" @tap="chooseDiceCount">
+      <text class="dice-count-label">骰子数 {{ diceCount }}</text>
+    </view>
+
     <!-- 3D骰盅区域 -->
     <view class="dice-cup-area">
       <view class="cup-wrap" :class="{ shaking: isShaking }">
@@ -59,24 +63,11 @@
         @tap="handleShake"
         :disabled="isShaking"
       >
-        <text class="shake-text">{{ isShaking ? '⋯' : (shakeDisabled ? '🔒' : '摇') }}</text>
+        <text class="shake-text">{{ isShaking ? '⋯' : '摇' }}</text>
       </button>
-    </view>
-
-    <!-- 底部按钮组 -->
-    <view class="bottom-buttons">
-      <view class="btn-item" @tap="chooseDiceCount">
-        <text class="btn-icon">🎲</text>
-        <text class="btn-label">骰子数 {{ diceCount }}</text>
-      </view>
-      <view class="btn-item" @tap="toggleShakeLock">
-        <text class="btn-icon">{{ shakeDisabled ? '🔓' : '🔒' }}</text>
-        <text class="btn-label">{{ shakeDisabled ? '允许摇骰' : '禁止摇骰' }}</text>
-      </view>
-      <view class="btn-item" @tap="showPlayGuide">
-        <text class="btn-icon">❓</text>
-        <text class="btn-label">玩法</text>
-      </view>
+      <button class="lock-btn" :class="{ locked: shakeDisabled }" @tap="toggleShakeLock">
+        <text class="lock-text">{{ shakeDisabled ? '允许摇骰' : '禁止摇骰' }}</text>
+      </button>
     </view>
   </view>
 </template>
@@ -269,11 +260,6 @@ function chooseDiceCount() {
 // 禁止 / 允许摇骰
 function toggleShakeLock() {
   shakeDisabled.value = !shakeDisabled.value;
-  uni.showToast({ title: shakeDisabled.value ? '已禁止摇骰' : '已允许摇骰', icon: 'none' });
-}
-
-function showPlayGuide() {
-  uni.showToast({ title: '点「摇」掷骰，再上拉盖子揭盅', icon: 'none' });
 }
 
 function goBack() {
@@ -287,6 +273,34 @@ const SHAKE_CONFIRM = 2; // 需要连续达到阈值的采样次数
 let lastAccel = { x: 0, y: 0, z: 0 };
 let shakeCooldown = 0;
 let strongCount = 0;
+let accelStarted = false;
+function startShakeSensor() {
+  if (accelStarted) return;
+  try {
+    uni.startAccelerometer({ interval: 'normal' });
+    uni.onAccelerometerChange(onAccel);
+    accelStarted = true;
+  } catch (e) {
+    console.warn('加速度计启动失败:', e);
+  }
+}
+function requestShakeSensor() {
+  // #ifdef H5
+  const motionEvent = (window as any).DeviceMotionEvent;
+  if (motionEvent && typeof motionEvent.requestPermission === 'function') {
+    motionEvent.requestPermission()
+      .then((state: string) => {
+        if (state === 'granted') startShakeSensor();
+        else uni.showToast({ title: '未允许动作感应', icon: 'none' });
+      })
+      .catch((err: any) => {
+        console.warn('动作感应授权失败:', err);
+      });
+    return;
+  }
+  // #endif
+  startShakeSensor();
+}
 function onAccel(res: { x: number; y: number; z: number }) {
   const delta =
     Math.abs(res.x - lastAccel.x) +
@@ -354,10 +368,9 @@ onMounted(() => {
   }
   // #endif
   try {
-    uni.startAccelerometer({ interval: 'normal' });
-    uni.onAccelerometerChange(onAccel);
+    requestShakeSensor();
   } catch (e) {
-    /* 摇一摇不可用时仅保留按钮触发 */
+    console.warn('摇一摇初始化失败:', e);
   }
 });
 
@@ -430,6 +443,23 @@ page {
   font-size: 36rpx;
   font-weight: bold;
   letter-spacing: 4rpx;
+}
+
+.dice-count-chip {
+  position: fixed;
+  top: calc(118rpx + env(safe-area-inset-top));
+  left: 32rpx;
+  z-index: 80;
+  padding: 14rpx 24rpx;
+  border-radius: 999rpx;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1rpx solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(16rpx);
+}
+
+.dice-count-label {
+  font-size: 28rpx;
+  color: rgba(255, 255, 255, 0.92);
 }
 
 /* 骰盅区域 */
@@ -551,10 +581,13 @@ page {
 /* 摇骰子按钮 */
 .action-section {
   position: fixed;
-  bottom: 210rpx;
+  bottom: 96rpx;
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 28rpx;
 }
 
 .shake-btn {
