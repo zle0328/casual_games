@@ -144,7 +144,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onUnmounted } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
 import { useUserStore } from '../../stores/user';
 import { shuffle } from '../../utils/helpers';
 import { getRoom } from '../../api/room';
@@ -190,13 +191,9 @@ const wordPairs = [
   { civilian: '饼干', spy: '薯片' },
 ];
 
-onMounted(() => {
-  // 从路由参数判断是否联机模式
-  const pages = getCurrentPages();
-  const currentPage = pages[pages.length - 1];
-  const options = (currentPage as any).options || {};
-
-  if (options.room) {
+onLoad((options: any) => {
+  // 通过 onLoad 接收路由参数（H5 下 getCurrentPages().options 不可靠）
+  if (options?.room) {
     isOnlineMode.value = true;
     roomCode.value = options.room;
     loadRoomData();

@@ -112,6 +112,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
 import { useUserStore } from '../../stores/user';
 import { getRoom, startGame } from '../../api/room';
 import { copyToClipboard } from '../../utils/helpers';
@@ -145,14 +146,12 @@ const roomStatusText = computed(() => {
   }
 });
 
-onMounted(() => {
-  // 从路由参数获取房间码
-  const pages = getCurrentPages();
-  const currentPage = pages[pages.length - 1];
-  const options = (currentPage as any).options || {};
-  roomCode.value = options.code || '';
+onLoad((options: any) => {
+  // 通过 onLoad 接收路由参数（H5 下 getCurrentPages().options 不可靠）
+  const code = options?.code || '';
+  roomCode.value = code;
 
-  if (roomCode.value) {
+  if (code) {
     loadRoomInfo();
     startPolling();
   } else {
