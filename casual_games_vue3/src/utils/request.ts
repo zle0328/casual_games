@@ -1,7 +1,7 @@
 import type { ApiResponse } from '../types';
 
-// API 基础地址（开发时填写）
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8787';
+// API 基础地址。生产环境默认走 Pages 同源 /api，开发时可用 VITE_API_BASE_URL 覆盖。
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 interface RequestOptions {
   url: string;

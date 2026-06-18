@@ -1,23 +1,29 @@
 # 任务计划
 
 ## 目标
-- 修复摇骰子页面的重力/动作感应触发不稳定问题。
-- 顺手记录低风险可优化点，优先处理不改变现有交互的代码级优化。
+- 将现有 Worker API 迁移为 Cloudflare Pages Functions 同源 API。
+- 让前端默认请求 `https://casual-games-90p.pages.dev/api/...`，避免浏览器直连 `*.workers.dev`。
 
 ## 范围
-- `casual_games_vue3/src/pages/dice-game/index.vue`
-- 本地构建或 H5 验证命令
+- `casual_games_backend/src/index.ts`
+- `casual_games_vue3/functions/api/[[path]].ts`
+- `casual_games_vue3/src/utils/request.ts`
+- `casual_games_vue3/wrangler.toml`
+- 相关构建、预览和部署脚本
 
 ## 非目标
-- 不调整后端、远程部署、CI/CD、账号、生产配置。
-- 不重构两个前端目录的项目结构。
+- 不直接执行远程部署、修改 Cloudflare 生产配置或绑定生产资源。
+- 不拆分现有后端路由为多个文件路由。
+- 不调整数据库 schema。
 
 ## 阶段
-1. 定位项目入口、脚本和骰子页实现。
-2. 修复 H5/小程序传感器启动与事件清理。
-3. 运行可用验证并记录结果。
+1. 确认现有 Worker 入口、前端 API base 和 Cloudflare Pages Functions 模式。
+2. 新增 Pages Functions catch-all API 路由，复用现有 API 处理器。
+3. 新增前端 Pages 配置和构建脚本，默认 API 改为同源。
+4. 运行构建/类型检查并记录手动部署步骤。
 
 ## 验收标准
-- 手动按钮摇骰不回归。
-- H5 支持 `devicemotion` 事件兜底，小程序/App 继续使用 `uni` 加速度计。
-- 构建或等价检查通过，无法验证的硬件行为明确标注。
+- 前端 H5 构建通过。
+- Pages Functions 入口可由 `wrangler pages dev` 加载。
+- 本地或远程部署后 `/api/health` 返回 JSON。
+- 非 `/api/*` 请求继续由 Pages 静态资源处理。

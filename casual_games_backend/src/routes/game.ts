@@ -1,6 +1,17 @@
 import type { Env } from '../types';
 import { jsonResponse, errorResponse, parseJsonBody, generateId } from '../utils/helpers';
 
+interface SpyWordPair {
+  civilian: string;
+  spy: string;
+}
+
+interface SpyWordsResponse {
+  data: {
+    words?: SpyWordPair[];
+  } | SpyWordPair[];
+}
+
 /**
  * 保存游戏结果
  */
@@ -153,8 +164,8 @@ export async function handleAssignSpyRoles(request: Request, env: Env) {
 
     // 随机选择词条
     const wordsData = await handleGetSpyWords(env);
-    const wordsResponse = await wordsData.json();
-    const words = wordsResponse.data.words || wordsResponse.data;
+    const wordsResponse = await wordsData.json<SpyWordsResponse>();
+    const words = Array.isArray(wordsResponse.data) ? wordsResponse.data : wordsResponse.data.words || [];
     const selectedWord = words[Math.floor(Math.random() * words.length)];
 
     // 更新玩家角色和词条

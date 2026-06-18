@@ -1,6 +1,11 @@
 import type { Env } from '../types';
 import { jsonResponse, errorResponse, parseJsonBody, generateId } from '../utils/helpers';
 
+interface UserStatsRow {
+  spy_games: number;
+  spy_wins: number;
+}
+
 /**
  * 创建或获取用户
  */
@@ -26,7 +31,7 @@ export async function handleCreateUser(request: Request, env: Env) {
       'INSERT INTO users (id, nickname, avatar) VALUES (?, ?, ?)'
     ).bind(userId, body.nickname, body.avatar || null).run();
 
-    const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+    const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first<UserStatsRow>();
 
     return jsonResponse(user, 201);
   } catch (error) {
@@ -40,7 +45,7 @@ export async function handleCreateUser(request: Request, env: Env) {
  */
 export async function handleGetUser(userId: string, env: Env) {
   try {
-    const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+    const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first<UserStatsRow>();
 
     if (!user) {
       return errorResponse('用户不存在', 404);

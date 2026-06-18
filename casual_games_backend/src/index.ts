@@ -4,7 +4,7 @@ import { handleCreateUser, handleGetUser, handleGetUserRecords } from './routes/
 import { handleCreateRoom, handleJoinRoom, handleGetRoom, handleStartGame } from './routes/room';
 import { handleSaveGameResult, handleGetSpyWords, handleAssignSpyRoles, handleGetMyIdentity, handleRestartSpyGame } from './routes/game';
 
-export default {
+export const apiHandler = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
@@ -79,3 +79,5 @@ export default {
     }
   },
 };
+
+export default apiHandler;
