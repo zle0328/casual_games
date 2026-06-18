@@ -281,7 +281,7 @@ function goBack() {
 }
 
 // 摇一摇手势触发（阈值越大越不灵敏；需连续多次强晃动才触发，避免轻晃误触）
-const SHAKE_THRESHOLD = 1.7; // 单次采样的加速度变化阈值（数值越大越不灵敏）
+const SHAKE_THRESHOLD = 3; // 单次采样的加速度变化阈值（数值越大越不灵敏）
 const SHAKE_COOLDOWN = 1400; // 两次触发的最小间隔 ms
 const SHAKE_CONFIRM = 3; // 需要连续达到阈值的采样次数
 const SHAKE_WARMUP = 700; // 启动传感器后的基线校准时间，避免首帧误触发
