@@ -38,3 +38,12 @@ export function assignSpyRoles(data: {
 export function getMyIdentity(roomCode: string, userId: string) {
   return get<{ role: 'civilian' | 'spy' | 'blank'; word: string | null }>(`/api/game/my-identity?room_code=${roomCode}&user_id=${userId}`);
 }
+
+/**
+ * 再来一局（仅房主）
+ * 后端重新随机分配卧底角色与词条，并刷新局数版本戳，
+ * 各成员端轮询时据此自动拉取新身份。
+ */
+export function restartSpyGame(data: { room_code: string; user_id: string }) {
+  return post<{ message: string; round_key: string }>('/api/game/spy-restart', data);
+}

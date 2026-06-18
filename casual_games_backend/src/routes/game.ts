@@ -183,3 +183,112 @@ export async function handleAssignSpyRoles(request: Request, env: Env) {
     return errorResponse('分配角色失败', 500);
   }
 }
+
+/**
+ * 再来一局（仅房主触发）
+ * 重新随机分配卧底角色与词条，并刷新 rooms.started_at 作为「局数版本戳」，
+ * 各成员端轮询时据此感知新一局并重新拉取身份，从而刷新词条。
+ */
+export async function handleRestartSpyGame(request: Request, env: Env) {
+  const body = await parseJsonBody<{ room_code: string; user_id: string }>(request);
+
+  if (!body || !body.room_code || !body.user_id) {
+    return errorResponse('参数不完整', 400);
+  }
+
+  try {
+    const room = await env.DB.prepare('SELECT * FROM rooms WHERE room_code = ?')
+      .bind(body.room_code)
+      .first();
+
+    if (!room) {
+      return errorResponse('房间不存在', 404);
+    }
+
+    // 仅房主可触发新一局
+    if (room.creator_id !== body.user_id) {
+      return errorResponse('只有房主可以开始新一局', 403);
+    }
+
+    if (room.game_type !== 'spy') {
+      return errorResponse('当前游戏不支持再来一局', 400);
+    }
+
+    const settings = JSON.parse(room.settings as string || '{}');
+    const spyCount = settings.spy_count || 1;
+    const blankCount = settings.blank_count || 0;
+
+    const { results: players } = await env.DB.prepare(
+      'SELECT user_id FROM room_players WHERE room_code = ?'
+    ).bind(body.room_code).all();
+
+    if (players.length < 3) {
+      return errorResponse('玩家人数不足', 400);
+    }
+
+    const totalPlayers = players.length;
+    if (spyCount + blankCount >= totalPlayers) {
+      return errorResponse('卧底和白板数量过多', 400);
+    }
+
+    // 重新随机分配角色（Fisher-Yates 洗牌）
+    const roles: string[] = [
+      ...Array(spyCount).fill('spy'),
+      ...Array(blankCount).fill('blank'),
+      ...Array(totalPlayers - spyCount - blankCount).fill('civilian'),
+    ];
+    for (let i = roles.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [roles[i], roles[j]] = [roles[j], roles[i]];
+    }
+
+    // 随机选择新词条
+    const defaultWords = [
+      { civilian: '包子', spy: '饺子' },
+      { civilian: '牛奶', spy: '豆浆' },
+      { civilian: '西瓜', spy: '冬瓜' },
+      { civilian: '手机', spy: '座机' },
+      { civilian: '眉毛', spy: '睫毛' },
+      { civilian: '作家', spy: '诗人' },
+      { civilian: '玫瑰', spy: '月季' },
+      { civilian: '汽车', spy: '火车' },
+      { civilian: '状元', spy: '冠军' },
+      { civilian: '饼干', spy: '薯片' },
+    ];
+    const selectedWord = defaultWords[Math.floor(Math.random() * defaultWords.length)];
+
+    // 更新每个玩家的角色、词条，并复活全部玩家
+    for (let i = 0; i < players.length; i++) {
+      const role = roles[i];
+      let word = null;
+      if (role === 'spy') {
+        word = selectedWord.spy;
+      } else if (role === 'civilian') {
+        word = selectedWord.civilian;
+      }
+      // blank 角色 word 保持 null
+
+      await env.DB.prepare(
+        'UPDATE room_players SET role = ?, word = ?, is_alive = 1 WHERE room_code = ? AND user_id = ?'
+      ).bind(role, word, body.room_code, players[i].user_id).run();
+    }
+
+    // 刷新版本戳：started_at 变化让前端各端感知「新一局」
+    await env.DB.prepare(
+      'UPDATE rooms SET started_at = CURRENT_TIMESTAMP, status = ? WHERE room_code = ?'
+    ).bind('playing', body.room_code).run();
+
+    // 读回新的 started_at 作为 round_key 返回给房主
+    const updated = await env.DB.prepare('SELECT started_at FROM rooms WHERE room_code = ?')
+      .bind(body.room_code)
+      .first();
+
+    return jsonResponse({
+      message: '新一局已开始',
+      round_key: (updated?.started_at as string) || String(Date.now()),
+    });
+  } catch (error) {
+    console.error('Restart spy game error:', error);
+    return errorResponse('开始新一局失败', 500);
+  }
+}

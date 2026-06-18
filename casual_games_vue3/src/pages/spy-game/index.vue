@@ -131,9 +131,12 @@
           </view>
         </view>
 
-        <button class="btn-restart" @tap="restartGame">
+        <button class="btn-restart" @tap="restartGame" v-if="!isOnlineMode || isHost">
           再来一局
         </button>
+        <text class="restart-waiting" v-else-if="isOnlineMode">
+          等待房主开始新一局...
+        </text>
 
         <button class="btn-back-home" @tap="goHome">
           返回首页
@@ -144,12 +147,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue';
+import { ref, computed, onUnmounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { useUserStore } from '../../stores/user';
 import { shuffle } from '../../utils/helpers';
 import { getRoom } from '../../api/room';
-import { assignSpyRoles, saveGameResult, getMyIdentity } from '../../api/game';
+import { assignSpyRoles, saveGameResult, getMyIdentity, restartSpyGame } from '../../api/game';
 
 type GameState = 'setup' | 'playing' | 'voting' | 'ended';
 type Role = 'civilian' | 'spy' | 'blank';
@@ -174,6 +177,11 @@ const assignedRoles = ref<Role[]>([]);
 
 const gameResult = ref<'spy_win' | 'civilian_win'>('civilian_win');
 const resultMessage = ref('');
+
+// 房主判定与局数版本戳（started_at 变化代表房主开始了新一局）
+const creatorId = ref('');
+const roundKey = ref('');
+const isHost = computed(() => isOnlineMode.value && !!roomCode.value && userStore.userId === creatorId.value);
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -210,6 +218,7 @@ async function loadRoomData() {
   try {
     const res = await getRoom(roomCode.value);
     if (res.success && res.data) {
+      creatorId.value = res.data.creator_id || '';
       playerCount.value = res.data.players?.length || 5;
 
       // 从房间设置加载配置
@@ -221,8 +230,10 @@ async function loadRoomData() {
         blankCount.value = settings.blank_count || 0;
       }
 
-      // 如果游戏已开始，获取身份并进入游戏
-      if (res.data.status === 'playing' && gameState.value === 'setup') {
+      // 局数版本戳（started_at）变化代表房主开始了新一局（含首次进入游戏）
+      const newRoundKey = res.data.started_at || '';
+      if (res.data.status === 'playing' && newRoundKey && newRoundKey !== roundKey.value) {
+        roundKey.value = newRoundKey;
         await startGame();
       }
     }
@@ -290,8 +301,12 @@ async function startGame() {
         myRole.value = res.data.role;
         myWord.value = res.data.word || '';
 
-        gameState.value = 'playing';
+        // 进入新一局：清空上局的投票/淘汰/身份揭示状态
         identityRevealed.value = false;
+        eliminatedPlayers.value = [];
+        selectedPlayer.value = null;
+        assignedRoles.value = [];
+        gameState.value = 'playing';
 
         uni.showToast({
           title: '游戏开始！',
@@ -434,12 +449,46 @@ async function endGameWithResult(result: 'spy_win' | 'civilian_win', message: st
 }
 
 // 重新开始
-function restartGame() {
-  gameState.value = 'setup';
-  identityRevealed.value = false;
-  eliminatedPlayers.value = [];
-  selectedPlayer.value = null;
-  assignedRoles.value = [];
+async function restartGame() {
+  // 单机模式：回到设置界面
+  if (!isOnlineMode.value) {
+    gameState.value = 'setup';
+    identityRevealed.value = false;
+    eliminatedPlayers.value = [];
+    selectedPlayer.value = null;
+    assignedRoles.value = [];
+    return;
+  }
+
+  // 联机模式：仅房主可开始新一局，触发后端重新分配角色与词条
+  if (!isHost.value) {
+    uni.showToast({ title: '只有房主可以开始新一局', icon: 'none' });
+    return;
+  }
+
+  try {
+    uni.showLoading({ title: '开始新一局...' });
+
+    const res = await restartSpyGame({
+      room_code: roomCode.value,
+      user_id: userStore.userId,
+    });
+
+    uni.hideLoading();
+
+    if (res.success && res.data) {
+      // 同步局数版本戳，避免下次轮询重复触发
+      roundKey.value = res.data.round_key;
+      // 立即拉取新身份进入新一局（成员端由轮询感知 started_at 变化自动刷新）
+      await startGame();
+    }
+  } catch (error: any) {
+    uni.hideLoading();
+    uni.showToast({
+      title: error.message || '开始新一局失败',
+      icon: 'none',
+    });
+  }
 }
 
 // 返回首页
@@ -916,6 +965,15 @@ function goBack() {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: #fff;
       margin-bottom: 16rpx;
+    }
+
+    .restart-waiting {
+      display: block;
+      width: 100%;
+      margin-bottom: 16rpx;
+      font-size: 28rpx;
+      color: #999;
+      text-align: center;
     }
 
     .btn-back-home {

@@ -24,6 +24,7 @@ export interface Room {
   status: 'waiting' | 'playing' | 'finished';
   settings: any;
   players?: RoomPlayer[];
+  started_at?: string;
 }
 
 export interface RoomPlayer {

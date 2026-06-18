@@ -2,7 +2,7 @@ import type { Env } from './types';
 import { corsResponse, errorResponse } from './utils/helpers';
 import { handleCreateUser, handleGetUser, handleGetUserRecords } from './routes/user';
 import { handleCreateRoom, handleJoinRoom, handleGetRoom, handleStartGame } from './routes/room';
-import { handleSaveGameResult, handleGetSpyWords, handleAssignSpyRoles, handleGetMyIdentity } from './routes/game';
+import { handleSaveGameResult, handleGetSpyWords, handleAssignSpyRoles, handleGetMyIdentity, handleRestartSpyGame } from './routes/game';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -52,6 +52,9 @@ export default {
       }
       if (url.pathname === '/api/game/spy-roles' && request.method === 'POST') {
         return handleAssignSpyRoles(request, env);
+      }
+      if (url.pathname === '/api/game/spy-restart' && request.method === 'POST') {
+        return handleRestartSpyGame(request, env);
       }
       if (url.pathname.match(/^\/api\/game\/my-identity$/) && request.method === 'GET') {
         const roomCode = url.searchParams.get('room_code');
