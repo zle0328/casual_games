@@ -154,6 +154,7 @@ function rollDice() {
 
 // 摇骰子：摇动后骰子落定（盖子保持闭合，由玩家手动揭开）
 function handleShake() {
+  requestShakeSensor();
   if (isShaking.value) return;
   if (shakeDisabled.value) {
     uni.showToast({ title: '摇骰已被禁止', icon: 'none' });
@@ -285,18 +286,107 @@ let lastAccel = { x: 0, y: 0, z: 0 };
 let shakeCooldown = 0;
 let strongCount = 0;
 let accelStarted = false;
-function startShakeSensor() {
-  if (accelStarted) return;
+let uniAccelListening = false;
+// #ifdef H5
+const GRAVITY = 9.80665;
+let h5MotionListening = false;
+let gestureGrantHandler: (() => void) | null = null;
+// #endif
+
+function resetShakeSampling() {
+  lastAccel = { x: 0, y: 0, z: 0 };
+  strongCount = 0;
+}
+
+function startUniAccelerometer() {
+  if (uniAccelListening) return true;
   try {
     uni.startAccelerometer({ interval: 'normal' });
     uni.onAccelerometerChange(onAccel);
-    accelStarted = true;
+    uniAccelListening = true;
+    return true;
   } catch (e) {
     console.warn('加速度计启动失败:', e);
+    return false;
   }
 }
-function requestShakeSensor() {
+
+// #ifdef H5
+function normalizeMotionValue(value: number | null | undefined) {
+  const n = Number(value || 0);
+  return Math.abs(n) > 4 ? n / GRAVITY : n;
+}
+
+function onDeviceMotion(e: DeviceMotionEvent) {
+  const acc = e.accelerationIncludingGravity || e.acceleration;
+  if (!acc) return;
+  onAccel({
+    x: normalizeMotionValue(acc.x),
+    y: normalizeMotionValue(acc.y),
+    z: normalizeMotionValue(acc.z),
+  });
+}
+
+function startH5MotionSensor() {
+  if (h5MotionListening) return true;
+  if (typeof window === 'undefined' || !('DeviceMotionEvent' in window)) {
+    return false;
+  }
+  window.addEventListener('devicemotion', onDeviceMotion, false);
+  h5MotionListening = true;
+  return true;
+}
+
+function removeShakePermissionGesture() {
+  if (!gestureGrantHandler || typeof document === 'undefined') return;
+  document.removeEventListener('touchend', gestureGrantHandler);
+  document.removeEventListener('click', gestureGrantHandler);
+  gestureGrantHandler = null;
+}
+
+function bindShakePermissionGesture() {
+  if (gestureGrantHandler || typeof document === 'undefined') return;
+  gestureGrantHandler = () => {
+    removeShakePermissionGesture();
+    requestShakeSensor();
+  };
+  document.addEventListener('touchend', gestureGrantHandler);
+  document.addEventListener('click', gestureGrantHandler);
+}
+
+function isInsecureMotionContext() {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return window.isSecureContext === false && host !== 'localhost' && host !== '127.0.0.1';
+}
+// #endif
+
+function startShakeSensor() {
+  if (accelStarted) return;
+  resetShakeSampling();
+
+  let started = false;
   // #ifdef H5
+  started = startH5MotionSensor();
+  // H5 下保留 uni 封装兜底；部分 WebView 只触发其中一种路径。
+  started = startUniAccelerometer() || started;
+  // #endif
+  // #ifndef H5
+  started = startUniAccelerometer();
+  // #endif
+
+  accelStarted = started;
+  if (!started) {
+    uni.showToast({ title: '当前环境不支持动作感应', icon: 'none' });
+  }
+}
+
+function requestShakeSensor() {
+  if (accelStarted) return;
+  // #ifdef H5
+  if (isInsecureMotionContext()) {
+    uni.showToast({ title: '动作感应需要 HTTPS', icon: 'none' });
+  }
   const motionEvent = (window as any).DeviceMotionEvent;
   if (motionEvent && typeof motionEvent.requestPermission === 'function') {
     motionEvent.requestPermission()
@@ -313,6 +403,7 @@ function requestShakeSensor() {
   startShakeSensor();
 }
 function onAccel(res: { x: number; y: number; z: number }) {
+  if (!res) return;
   const delta =
     Math.abs(res.x - lastAccel.x) +
     Math.abs(res.y - lastAccel.y) +
@@ -330,6 +421,27 @@ function onAccel(res: { x: number; y: number; z: number }) {
     shakeCooldown = now;
     handleShake();
   }
+}
+
+function stopShakeSensor() {
+  // #ifdef H5
+  removeShakePermissionGesture();
+  if (h5MotionListening && typeof window !== 'undefined') {
+    window.removeEventListener('devicemotion', onDeviceMotion);
+    h5MotionListening = false;
+  }
+  // #endif
+  if (uniAccelListening) {
+    try {
+      uni.offAccelerometerChange(onAccel);
+      uni.stopAccelerometer({});
+    } catch (e) {
+      /* ignore */
+    }
+    uniAccelListening = false;
+  }
+  accelStarted = false;
+  resetShakeSampling();
 }
 
 // #ifdef H5
@@ -386,13 +498,7 @@ onMounted(() => {
     const needsPermission =
       typeof (window as any).DeviceMotionEvent?.requestPermission === 'function';
     if (needsPermission) {
-      const grant = () => {
-        requestShakeSensor();
-        document.removeEventListener('touchend', grant);
-        document.removeEventListener('click', grant);
-      };
-      document.addEventListener('touchend', grant);
-      document.addEventListener('click', grant);
+      bindShakePermissionGesture();
     } else {
       // Android / 旧版 iOS 无需授权
       startShakeSensor();
@@ -407,12 +513,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  try {
-    uni.offAccelerometerChange(onAccel);
-    uni.stopAccelerometer({});
-  } catch (e) {
-    /* ignore */
-  }
+  stopShakeSensor();
   try {
     if (shakeAudio) {
       shakeAudio.stop();
