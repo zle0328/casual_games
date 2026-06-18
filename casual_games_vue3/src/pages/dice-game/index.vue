@@ -96,6 +96,7 @@ interface Die {
 
 // 盖子最大抬升高度（rpx）
 const MAX_LIFT = 440;
+const ROLL_DURATION = 1150;
 
 const isShaking = ref(false);
 const shakeDisabled = ref(false);
@@ -174,7 +175,7 @@ function handleShake() {
     rollDice();
     resetShakeSampling();
     safeVibrate('long');
-  }, 1600);
+  }, ROLL_DURATION);
 }
 
 function safeVibrate(type: 'short' | 'long') {
@@ -280,9 +281,9 @@ function goBack() {
 }
 
 // 摇一摇手势触发（阈值越大越不灵敏；需连续多次强晃动才触发，避免轻晃误触）
-const SHAKE_THRESHOLD = 1.2; // 单次采样的加速度变化阈值（降低阈值提高灵敏度）
-const SHAKE_COOLDOWN = 1500; // 两次触发的最小间隔 ms
-const SHAKE_CONFIRM = 2; // 需要连续达到阈值的采样次数
+const SHAKE_THRESHOLD = 1.7; // 单次采样的加速度变化阈值（数值越大越不灵敏）
+const SHAKE_COOLDOWN = 1400; // 两次触发的最小间隔 ms
+const SHAKE_CONFIRM = 3; // 需要连续达到阈值的采样次数
 const SHAKE_WARMUP = 700; // 启动传感器后的基线校准时间，避免首帧误触发
 let lastAccel = { x: 0, y: 0, z: 0 };
 let shakeCooldown = 0;
