@@ -172,6 +172,7 @@ function handleShake() {
     clearInterval(buzz);
     isShaking.value = false;
     rollDice();
+    resetShakeSampling();
     safeVibrate('long');
   }, 1600);
 }
@@ -282,11 +283,14 @@ function goBack() {
 const SHAKE_THRESHOLD = 1.2; // 单次采样的加速度变化阈值（降低阈值提高灵敏度）
 const SHAKE_COOLDOWN = 1500; // 两次触发的最小间隔 ms
 const SHAKE_CONFIRM = 2; // 需要连续达到阈值的采样次数
+const SHAKE_WARMUP = 700; // 启动传感器后的基线校准时间，避免首帧误触发
 let lastAccel = { x: 0, y: 0, z: 0 };
 let shakeCooldown = 0;
 let strongCount = 0;
 let accelStarted = false;
 let uniAccelListening = false;
+let hasAccelSample = false;
+let sensorReadyAt = 0;
 // #ifdef H5
 const GRAVITY = 9.80665;
 let h5MotionListening = false;
@@ -296,6 +300,8 @@ let gestureGrantHandler: (() => void) | null = null;
 function resetShakeSampling() {
   lastAccel = { x: 0, y: 0, z: 0 };
   strongCount = 0;
+  hasAccelSample = false;
+  sensorReadyAt = Date.now() + SHAKE_WARMUP;
 }
 
 function startUniAccelerometer() {
@@ -367,9 +373,12 @@ function startShakeSensor() {
 
   let started = false;
   // #ifdef H5
-  started = startH5MotionSensor();
-  // H5 下保留 uni 封装兜底；部分 WebView 只触发其中一种路径。
-  started = startUniAccelerometer() || started;
+  // H5 只启用一条传感器路径，避免原生事件和 uni 封装单位不同导致静止误判。
+  if (typeof window !== 'undefined' && 'DeviceMotionEvent' in window) {
+    started = startH5MotionSensor();
+  } else {
+    started = startUniAccelerometer();
+  }
   // #endif
   // #ifndef H5
   started = startUniAccelerometer();
@@ -404,13 +413,20 @@ function requestShakeSensor() {
 }
 function onAccel(res: { x: number; y: number; z: number }) {
   if (!res) return;
-  const delta =
-    Math.abs(res.x - lastAccel.x) +
-    Math.abs(res.y - lastAccel.y) +
-    Math.abs(res.z - lastAccel.z);
-  lastAccel = { x: res.x, y: res.y, z: res.z };
-  strongCount = delta > SHAKE_THRESHOLD ? strongCount + 1 : 0;
+  const current = { x: res.x, y: res.y, z: res.z };
   const now = Date.now();
+  if (!hasAccelSample || now < sensorReadyAt || isShaking.value) {
+    lastAccel = current;
+    hasAccelSample = true;
+    strongCount = 0;
+    return;
+  }
+  const delta =
+    Math.abs(current.x - lastAccel.x) +
+    Math.abs(current.y - lastAccel.y) +
+    Math.abs(current.z - lastAccel.z);
+  lastAccel = current;
+  strongCount = delta > SHAKE_THRESHOLD ? strongCount + 1 : 0;
   if (
     strongCount >= SHAKE_CONFIRM &&
     !isShaking.value &&
